@@ -24,14 +24,17 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install ALL dependencies (including devDependencies for building)
+RUN npm install
 
 # Copy the rest of the application
 COPY . .
 
-# Build TypeScript (if needed)
+# Build TypeScript
 RUN npm run build
+
+# Remove devDependencies to reduce image size
+RUN npm prune --production
 
 # Expose port (Railway will override this)
 EXPOSE 5000
