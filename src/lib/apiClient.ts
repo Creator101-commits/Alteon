@@ -2,6 +2,9 @@
  * API Client with automatic retry logic and error handling
  */
 
+// Use Railway backend in production, localhost for development
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+
 interface RetryOptions {
   maxRetries?: number;
   baseDelay?: number;
@@ -122,6 +125,9 @@ export class APIClient {
     const opts = { ...this.defaultRetryOptions, ...retryOptions };
     let lastError: any;
 
+    // Prepend API_BASE_URL if the URL starts with /api
+    const fullUrl = url.startsWith('/api') ? `${API_BASE_URL}${url}` : url;
+
     // Check if offline
     if (!navigator.onLine) {
       this.networkStatus.lastError = 'No internet connection';
@@ -142,7 +148,7 @@ export class APIClient {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
-        const response = await fetch(url, {
+        const response = await fetch(fullUrl, {
           ...options,
           signal: controller.signal,
           headers: {
