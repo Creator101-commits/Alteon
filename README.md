@@ -1,6 +1,6 @@
 # Alteon
 
-Alteon is a comprehensive, AI-powered productivity platform designed specifically for students. It combines intelligent note-taking, calendar management, assignment tracking, and AI assistance to create a unified academic workspace.
+Alteon is a comprehensive, AI-powered productivity platform designed specifically for students. It combines intelligent note-taking, calendar management, assignment tracking, and AI assistance to create a unified academic workspace
 
 ![Architecture Diagram](images/software_architecture_diagram.png)
 
@@ -472,4 +472,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 **Alteon** - Empowering students with AI-driven productivity tools. 
+
 
