@@ -46,6 +46,14 @@ export async function initializeDatabase() {
       throw new Error('Oracle Client is not available. Please install Oracle Instant Client to use database features.');
     }
 
+    // Debug: Log environment variables (without sensitive data)
+    console.log(' Oracle ENV check:', {
+      ORACLE_USER: process.env.ORACLE_USER ? 'set' : 'not set',
+      ORACLE_PASSWORD: process.env.ORACLE_PASSWORD ? 'set (hidden)' : 'not set',
+      ORACLE_CONNECTION_STRING: process.env.ORACLE_CONNECTION_STRING ? 'set' : 'not set',
+      TNS_ADMIN: process.env.TNS_ADMIN || 'not set'
+    });
+
     if (!process.env.ORACLE_USER || !process.env.ORACLE_PASSWORD || !process.env.ORACLE_CONNECTION_STRING) {
       throw new Error('Oracle database environment variables are not set');
     }

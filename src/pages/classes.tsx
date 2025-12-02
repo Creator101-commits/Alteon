@@ -85,16 +85,6 @@ export default function Classes() {
   };
 
   const handleDeleteClass = async (course: any) => {
-    // Only allow deletion of custom classes (not Google Classroom classes)
-    if (course.googleClassroomId || course.courseState) {
-      toast({
-        title: "Cannot Delete",
-        description: "Google Classroom classes cannot be deleted from this interface.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     try {
       const deleted = await confirmDeleteClass(course.id, course.name);
       if (deleted) {
@@ -135,7 +125,7 @@ export default function Classes() {
           className="text-sm"
         >
           <RefreshCw className={`h-3 w-3 mr-1 ${isSyncing || isRestoring ? 'animate-spin' : ''}`} />
-          {isSyncing || isRestoring ? 'Syncing...' : 'Sync'}
+          {isSyncing || isRestoring ? 'Refreshing...' : 'Refresh'}
         </Button>
         <Dialog>
           <DialogTrigger asChild>
@@ -269,39 +259,20 @@ export default function Classes() {
                   {course.name}
                 </CardTitle>
                 <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-                  {course.courseState ? (
-                    <Badge 
-                      variant={course.courseState === 'ACTIVE' ? 'default' : 'secondary'}
-                    >
-                      {course.courseState === 'ACTIVE' ? (
-                        <CheckCircle className="h-3 w-3 mr-1" />
-                      ) : (
-                        <AlertCircle className="h-3 w-3 mr-1" />
-                      )}
-                      {course.courseState}
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">
-                      Custom
-                    </Badge>
-                  )}
-                  
-                  {/* Delete button for custom classes only */}
-                  {!course.courseState && !course.googleClassroomId && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteClass(course)}
-                      disabled={isDeleting === course.id}
-                      className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                    >
-                      {isDeleting === course.id ? (
-                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-red-500 border-t-transparent" />
-                      ) : (
-                        <Trash2 className="h-3 w-3" />
-                      )}
-                    </Button>
-                  )}
+                  {/* Delete button for classes */}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeleteClass(course)}
+                    disabled={isDeleting === course.id}
+                    className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                  >
+                    {isDeleting === course.id ? (
+                      <div className="h-3 w-3 animate-spin rounded-full border-2 border-red-500 border-t-transparent" />
+                    ) : (
+                      <Trash2 className="h-3 w-3" />
+                    )}
+                  </Button>
                 </div>
               </div>
               {course.section && (
@@ -353,7 +324,7 @@ export default function Classes() {
       {courses.length > 0 && (
         <div className="mt-8 p-4 bg-muted/50 rounded-lg">
           <p className="text-sm text-muted-foreground text-center">
-            Showing {courses.length} class{courses.length !== 1 ? 'es' : ''} from Google Classroom
+            Showing {courses.length} class{courses.length !== 1 ? 'es' : ''}
           </p>
         </div>
       )}

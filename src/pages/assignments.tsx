@@ -331,7 +331,7 @@ export default function Assignments() {
           className="text-sm"
         >
           <RefreshCw className={`h-3 w-3 mr-1 ${isSyncing || isRestoring ? 'animate-spin' : ''}`} />
-          {isSyncing || isRestoring ? 'Syncing...' : 'Sync'}
+          {isSyncing || isRestoring ? 'Refreshing...' : 'Refresh'}
         </Button>
         <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
           <DialogTrigger asChild>
@@ -661,8 +661,7 @@ export default function Assignments() {
       {filteredAssignments.length > 0 && (
         <div className="mt-8 p-4 bg-muted/50 rounded-lg">
           <p className="text-sm text-muted-foreground text-center">
-            Showing {filteredAssignments.length} of {assignments.length} assignment{assignments.length !== 1 ? 's' : ''} 
-            {isAuthenticated ? ' from Google Classroom and custom assignments' : ' (custom assignments only)'}
+            Showing {filteredAssignments.length} of {assignments.length} assignment{assignments.length !== 1 ? 's' : ''}
           </p>
         </div>
       )}

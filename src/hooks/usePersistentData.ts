@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { syncGoogleClassroomData } from '@/lib/google-classroom';
 import { getCachedCalendarData } from '@/lib/google-calendar-service';
 
 interface PersistentDataState {
@@ -9,6 +8,11 @@ interface PersistentDataState {
   lastRestoreTime: Date | null;
 }
 
+/**
+ * Hook for managing persistent user data.
+ * Handles caching and restoration of user data from localStorage.
+ * Note: Google Classroom sync has been removed - classes and assignments are managed manually.
+ */
 export const usePersistentData = () => {
   const { user, userData } = useAuth();
   const [state, setState] = useState<PersistentDataState>({
@@ -18,22 +22,17 @@ export const usePersistentData = () => {
   });
 
   const restoreAllUserData = async () => {
-    if (!user?.uid || !userData) return;
+    if (!user?.uid) return;
 
     setState(prev => ({ ...prev, isRestoring: true }));
 
     try {
-      // Restore Google Classroom data if user has access
-      if (userData.hasGoogleAccess && userData.googleAccessToken) {
-        await restoreGoogleClassroomData();
-      }
-
       // Restore Google Calendar data if available
-      if (userData.hasGoogleCalendar) {
+      if (userData?.hasGoogleCalendar) {
         await restoreGoogleCalendarData();
       }
 
-      // Restore custom assignments
+      // Restore custom assignments from cache
       await restoreCustomAssignments();
 
       setState(prev => ({
@@ -43,57 +42,10 @@ export const usePersistentData = () => {
         lastRestoreTime: new Date(),
       }));
 
-      console.log(' All user data restored successfully');
+      console.log(' User data restored successfully');
     } catch (error) {
       console.error('Error restoring user data:', error);
       setState(prev => ({ ...prev, isRestoring: false }));
-    }
-  };
-
-  const restoreGoogleClassroomData = async () => {
-    if (!user?.uid || !userData?.googleAccessToken) return;
-
-    try {
-      // Check if we have cached data
-      const cachedData = localStorage.getItem(`classroom_data_${user.uid}`);
-      
-      if (cachedData) {
-        const data = JSON.parse(cachedData);
-        const cacheAge = Date.now() - new Date(data.cachedAt).getTime();
-        
-        // Use cached data if it's less than 6 hours old
-        if (cacheAge < 6 * 60 * 60 * 1000) {
-          (window as any).cachedClassroomData = {
-            courses: data.courses,
-            assignments: data.assignments,
-            lastSynced: new Date(data.cachedAt)
-          };
-          console.log(' Google Classroom data restored from cache');
-          return;
-        }
-      }
-
-      // Fetch fresh data if cache is stale or doesn't exist
-      console.log(' Fetching fresh Google Classroom data...');
-      const freshData = await syncGoogleClassroomData(userData.googleAccessToken);
-      
-      const dataToCache = {
-        courses: freshData.courses,
-        assignments: freshData.assignments,
-        cachedAt: new Date().toISOString()
-      };
-      
-      localStorage.setItem(`classroom_data_${user.uid}`, JSON.stringify(dataToCache));
-      
-      (window as any).cachedClassroomData = {
-        courses: freshData.courses,
-        assignments: freshData.assignments,
-        lastSynced: new Date()
-      };
-      
-      console.log(' Fresh Google Classroom data fetched and cached');
-    } catch (error) {
-      console.warn('Failed to restore Google Classroom data:', error);
     }
   };
 
@@ -159,15 +111,14 @@ export const usePersistentData = () => {
 
   // Auto-restore data when user changes
   useEffect(() => {
-    if (user?.uid && userData && !state.isRestored && !state.isRestoring) {
+    if (user?.uid && !state.isRestored && !state.isRestoring) {
       restoreAllUserData();
     }
-  }, [user?.uid, userData]);
+  }, [user?.uid]);
 
   return {
     ...state,
     restoreAllUserData,
-    restoreGoogleClassroomData,
     restoreGoogleCalendarData,
     restoreCustomAssignments,
     clearAllCachedData,

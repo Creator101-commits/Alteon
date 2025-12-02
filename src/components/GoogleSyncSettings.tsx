@@ -17,20 +17,18 @@ export const GoogleSyncSettings = () => {
   const hasGoogleAccess = userData?.hasGoogleAccess === true;
   const hasGoogleCalendar = userData?.hasGoogleCalendar === true;
 
-  const handleToggleGoogleSync = async (enabled: boolean) => {
+  const handleToggleGoogleCalendar = async (enabled: boolean) => {
     if (!user?.uid) return;
 
     setIsUpdating(true);
     try {
       await updateUserData(user.uid, {
-        hasGoogleAccess: enabled,
         hasGoogleCalendar: enabled,
-        googleAccessToken: enabled ? userData?.googleAccessToken : null,
       });
 
       toast({
         title: "Settings Updated",
-        description: `Google sync ${enabled ? 'enabled' : 'disabled'} successfully.`,
+        description: `Google Calendar sync ${enabled ? 'enabled' : 'disabled'} successfully.`,
       });
 
       // Restore user data to reflect changes
@@ -38,7 +36,7 @@ export const GoogleSyncSettings = () => {
     } catch (error: any) {
       toast({
         title: "Update Failed",
-        description: error.message || "Failed to update Google sync settings.",
+        description: error.message || "Failed to update Google Calendar settings.",
         variant: "destructive",
       });
     } finally {
@@ -48,8 +46,6 @@ export const GoogleSyncSettings = () => {
 
   const handleReconnectGoogle = async () => {
     try {
-      // This would trigger the Google OAuth flow again
-      // For now, we'll show a message to the user
       toast({
         title: "Reconnect Google",
         description: "Please sign out and sign in again with Google to reconnect your account.",
@@ -88,18 +84,18 @@ export const GoogleSyncSettings = () => {
           </Badge>
         </div>
 
-        {/* Google Sync Toggle */}
+        {/* Google Calendar Toggle */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="font-medium">Google Data Synchronization</h3>
+              <h3 className="font-medium">Google Calendar Sync</h3>
               <p className="text-sm text-muted-foreground">
-                Automatically sync Google Classroom courses and assignments
+                View and sync events from your Google Calendar
               </p>
             </div>
             <Switch
-              checked={hasGoogleAccess}
-              onCheckedChange={handleToggleGoogleSync}
+              checked={hasGoogleCalendar}
+              onCheckedChange={handleToggleGoogleCalendar}
               disabled={isUpdating || !userData?.googleAccessToken}
             />
           </div>
@@ -108,7 +104,7 @@ export const GoogleSyncSettings = () => {
             <Alert>
               <Info className="h-4 w-4" />
               <AlertDescription>
-                You need to sign in with Google to enable data synchronization.
+                You need to sign in with Google to enable calendar synchronization.
                 <Button
                   variant="link"
                   className="p-0 h-auto ml-2"
@@ -126,38 +122,31 @@ export const GoogleSyncSettings = () => {
           <h3 className="font-medium">Available Features</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="flex items-center gap-2 p-3 border rounded-lg">
-              <CheckCircle className={`w-4 h-4 ${hasGoogleAccess ? 'text-green-500' : 'text-gray-400'}`} />
-              <span className="text-sm">Google Classroom Integration</span>
-            </div>
-            <div className="flex items-center gap-2 p-3 border rounded-lg">
               <CheckCircle className={`w-4 h-4 ${hasGoogleCalendar ? 'text-green-500' : 'text-gray-400'}`} />
               <span className="text-sm">Google Calendar Sync</span>
             </div>
             <div className="flex items-center gap-2 p-3 border rounded-lg">
-              <CheckCircle className={`w-4 h-4 ${hasGoogleAccess ? 'text-green-500' : 'text-gray-400'}`} />
-              <span className="text-sm">Automatic Assignment Import</span>
+              <CheckCircle className="w-4 h-4 text-green-500" />
+              <span className="text-sm">Create Classes Manually</span>
             </div>
             <div className="flex items-center gap-2 p-3 border rounded-lg">
-              <CheckCircle className={`w-4 h-4 ${hasGoogleAccess ? 'text-green-500' : 'text-gray-400'}`} />
-              <span className="text-sm">Real-time Data Updates</span>
+              <CheckCircle className="w-4 h-4 text-green-500" />
+              <span className="text-sm">Create Assignments Manually</span>
+            </div>
+            <div className="flex items-center gap-2 p-3 border rounded-lg">
+              <CheckCircle className="w-4 h-4 text-green-500" />
+              <span className="text-sm">Track Progress & Due Dates</span>
             </div>
           </div>
         </div>
 
-        {/* Manual Sync Button */}
-        {hasGoogleAccess && (
-          <div className="pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={restoreUserData}
-              disabled={isUpdating}
-              className="w-full"
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${isUpdating ? 'animate-spin' : ''}`} />
-              {isUpdating ? 'Syncing...' : 'Manual Sync Now'}
-            </Button>
-          </div>
-        )}
+        {/* Sync Info */}
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            Classes and assignments are now managed manually. You can create, edit, and delete them directly from the Classes and Assignments pages.
+          </AlertDescription>
+        </Alert>
       </CardContent>
     </Card>
   );

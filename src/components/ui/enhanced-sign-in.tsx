@@ -130,13 +130,13 @@ export const EnhancedSignInPage: React.FC<EnhancedSignInPageProps> = ({
                 <GoogleSyncOption
                   onSelect={() => setGoogleSyncEnabled(true)}
                   selected={googleSyncEnabled}
-                  title="Full Google Sync"
-                  description="Complete integration with Google Classroom and Calendar"
+                  title="Google Calendar Sync"
+                  description="Sign in with Google and sync your calendar"
                   features={[
-                    "Sync Google Classroom courses & assignments",
+                    "Secure Google authentication",
                     "Import Google Calendar events",
-                    "Automatic data synchronization",
-                    "Real-time updates from Google services"
+                    "View your schedule in Alteon",
+                    "Create classes and assignments manually"
                   ]}
                   badge="Recommended"
                 />
@@ -145,12 +145,12 @@ export const EnhancedSignInPage: React.FC<EnhancedSignInPageProps> = ({
                   onSelect={() => setGoogleSyncEnabled(false)}
                   selected={!googleSyncEnabled}
                   title="Basic Google Login"
-                  description="Sign in with Google without data synchronization"
+                  description="Sign in with Google without calendar sync"
                   features={[
                     "Secure Google authentication",
-                    "Create custom classes manually",
+                    "Create classes manually",
                     "Add assignments manually",
-                    "No automatic data imports"
+                    "Full offline functionality"
                   ]}
                 />
               </div>
