@@ -1,0 +1,15 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:5173",
+  "loginUser": "test@example.com",
+  "loginPassword": "123456abc",
+  "executionArgs": {
+    "projectName": "RefyneoV1",
+    "projectPath": "c:\\Users\\prave\\OneDrive\\Desktop\\Dev\\RefyneoV1",
+    "testIds": [],
+    "additionalInstruction": "Test the assignments page functionality including:\n1. Viewing custom assignments\n2. Creating new custom assignments\n3. Marking custom assignments as complete\n4. Deleting custom assignments\n5. Personal todo list - adding, editing, deleting tasks\n6. Personal todo list - marking tasks complete\n7. Filtering and searching assignments",
+    "envs": {}
+  }
+}

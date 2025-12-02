@@ -1,0 +1,49 @@
+# Environment files with sensitive data
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Oracle sensitive files
+server/oracle_wallet/
+server/migrations/*.csv
+server/oracle_wallet.zip
+server/*.sso
+server/*.p12
+server/*.pem
+server/*.jks
+server/tnsnames.ora
+server/sqlnet.ora
+server/ojdbc.properties
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Production build
+dist/
+build/
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Database
+*.db
+*.sqlite
+
+# Temporary files
+*.tmp
+*.temp

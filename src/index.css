@@ -1,0 +1,485 @@
+@import url('https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  font-family: 'Lato', ui-sans-serif, system-ui, sans-serif;
+  font-weight: 400;
+}
+
+body {
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  font-variant-ligatures: common-ligatures;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
+}
+
+/* Accessibility: Screen reader only content */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+.sr-only:focus {
+  position: static;
+  width: auto;
+  height: auto;
+  padding: inherit;
+  margin: inherit;
+  overflow: visible;
+  clip: auto;
+  white-space: normal;
+}
+
+/* Accessibility: Focus visible styles */
+.focus-visible:focus {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}
+
+/* Lato font classes - all using regular 400 for readability */
+.lato-light,
+.lato-regular,
+.lato-medium,
+.lato-semibold,
+.lato-bold {
+  font-family: "Lato", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+}
+
+:root {
+  --background: hsl(0, 0%, 98%);
+  --foreground: hsl(0, 0%, 10%);
+  --muted: hsl(0, 0%, 94%);
+  --muted-foreground: hsl(0, 0%, 40%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(0, 0%, 10%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(0, 0%, 10%);
+  --border: hsl(0, 0%, 85%);
+  --input: hsl(0, 0%, 85%);
+  --primary: hsl(220, 90%, 50%);
+  --primary-foreground: hsl(0, 0%, 100%);
+  --secondary: hsl(0, 0%, 92%);
+  --secondary-foreground: hsl(0, 0%, 10%);
+  --accent: hsl(220, 90%, 95%);
+  --accent-foreground: hsl(220, 90%, 30%);
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(0, 0%, 100%);
+  --ring: hsl(220, 90%, 50%);
+  --radius: 0.75rem;
+  --chart-1: hsl(220, 70%, 50%);
+  --chart-2: hsl(160, 60%, 45%);
+  --chart-3: hsl(30, 80%, 55%);
+  --chart-4: hsl(280, 65%, 60%);
+  --chart-5: hsl(340, 75%, 55%);
+}
+
+.dark {
+  /* Background: #131314 (rgb(19,19,20)) */
+  --background: 240 3% 8%;
+  /* Main Text: #E0E0E0 (Soft Gray-White, 88% brightness - prevents halation) */
+  --foreground: 0 0% 88%;
+  --muted: 240 3% 12%;
+  --muted-foreground: 0 0% 65%;
+  --popover: 240 3% 8%;
+  --popover-foreground: 0 0% 88%;
+  --card: 240 3% 10%;
+  --card-foreground: 0 0% 88%;
+  --border: 240 3% 20%;
+  --input: 240 3% 20%;
+  --primary: 0 0% 88%;
+  --primary-foreground: 240 3% 8%;
+  --secondary: 240 3% 14%;
+  --secondary-foreground: 0 0% 88%;
+  --accent: 240 3% 14%;
+  --accent-foreground: 0 0% 88%;
+  --destructive: 0 0% 88%;
+  --destructive-foreground: 240 3% 8%;
+  --ring: 0 0% 88%;
+  --radius: 0.75rem;
+  --chart-1: hsl(220, 70%, 50%);
+  --chart-2: hsl(160, 60%, 45%);
+  --chart-3: hsl(30, 80%, 55%);
+  --chart-4: hsl(280, 65%, 60%);
+  --chart-5: hsl(340, 75%, 55%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .gradient-text {
+    background: linear-gradient(135deg, hsl(220, 90%, 50%), hsl(220, 90%, 70%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .dark .gradient-text {
+    background: linear-gradient(135deg, hsl(0, 0%, 100%), hsl(0, 0%, 70%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  .gradient-bg {
+    background: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+  }
+  
+  .glass-effect {
+    backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.7);
+    border: 1px solid hsl(0, 0%, 85%);
+  }
+  
+  .dark .glass-effect {
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid hsl(0, 0%, 20%);
+  }
+  
+  .dark-surface {
+    background-color: hsl(0, 0%, 10%);
+    border: 1px solid hsl(0, 0%, 20%);
+  }
+  
+  .dark-elevated {
+    background-color: hsl(0, 0%, 15%);
+    border: 1px solid hsl(0, 0%, 25%);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .notion-card {
+    background: hsl(0, 0%, 100%);
+    border-radius: 0.5rem;
+  }
+
+  .dark .notion-card {
+    background: hsl(0, 0%, 0%);
+  }
+}
+
+/* Custom animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { 
+    transform: translateY(50px); 
+    opacity: 0; 
+  }
+  to { 
+    transform: translateY(0); 
+    opacity: 1; 
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.6s ease-in-out;
+}
+
+.animate-slide-up {
+  animation: slideUp 0.8s ease-out;
+}
+
+/* Scrollbar styling for light and dark modes */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(0, 0%, 94%);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(0, 0%, 70%);
+  border-radius: 5px;
+  border: 2px solid hsl(0, 0%, 94%);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(0, 0%, 60%);
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: hsl(0, 0%, 10%);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: hsl(0, 0%, 40%);
+  border: 2px solid hsl(0, 0%, 10%);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: hsl(0, 0%, 50%);
+}
+
+/* Custom animations for landing page */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 1s ease-out forwards;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.8s ease-out forwards;
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Better text rendering */
+.text-render-optimize {
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Sign-in page animations */
+@keyframes fadeSlideIn {
+  to {
+    opacity: 1;
+    filter: blur(0px);
+    transform: translateY(0px);
+  }
+}
+
+@keyframes slideRightIn {
+  to {
+    opacity: 1;
+    filter: blur(0px);
+    transform: translateX(0px);
+  }
+}
+
+@keyframes testimonialIn {
+  to {
+    opacity: 1;
+    filter: blur(0px);
+    transform: translateY(0px) scale(1);
+  }
+}
+
+.animate-element {
+  opacity: 0;
+  filter: blur(4px);
+  transform: translateY(20px);
+  animation: fadeSlideIn 0.8s ease-out forwards;
+}
+
+.animate-slide-right {
+  opacity: 0;
+  filter: blur(4px);
+  transform: translateX(30px);
+  animation: slideRightIn 1s ease-out forwards;
+}
+
+.animate-testimonial {
+  opacity: 0;
+  filter: blur(4px);
+  transform: translateY(20px) scale(0.95);
+  animation: testimonialIn 0.8s ease-out forwards;
+}
+
+.animate-delay-100 { animation-delay: 0.1s; }
+.animate-delay-200 { animation-delay: 0.2s; }
+.animate-delay-300 { animation-delay: 0.3s; }
+.animate-delay-400 { animation-delay: 0.4s; }
+.animate-delay-500 { animation-delay: 0.5s; }
+.animate-delay-600 { animation-delay: 0.6s; }
+.animate-delay-700 { animation-delay: 0.7s; }
+.animate-delay-800 { animation-delay: 0.8s; }
+.animate-delay-900 { animation-delay: 0.9s; }
+.animate-delay-1000 { animation-delay: 1.0s; }
+.animate-delay-1200 { animation-delay: 1.2s; }
+.animate-delay-1400 { animation-delay: 1.4s; }
+
+/* Tiptap Editor Styles */
+.tiptap,
+.tiptap.prose,
+.prose .tiptap,
+.ProseMirror {
+  outline: none;
+  color: hsl(var(--foreground)) !important;
+}
+
+.tiptap p,
+.tiptap.prose p,
+.prose .tiptap p,
+.ProseMirror p {
+  margin: 0.5em 0;
+  color: hsl(var(--foreground)) !important;
+}
+
+.tiptap h1,
+.tiptap.prose h1,
+.ProseMirror h1 {
+  font-size: 2em;
+  font-weight: 700;
+  margin: 1em 0 0.5em;
+  line-height: 1.2;
+  color: hsl(var(--foreground)) !important;
+}
+
+.tiptap h2,
+.tiptap.prose h2,
+.ProseMirror h2 {
+  font-size: 1.5em;
+  font-weight: 600;
+  margin: 0.8em 0 0.4em;
+  line-height: 1.3;
+  color: hsl(var(--foreground)) !important;
+}
+
+.tiptap h3,
+.tiptap.prose h3,
+.ProseMirror h3 {
+  font-size: 1.25em;
+  font-weight: 600;
+  margin: 0.6em 0 0.3em;
+  line-height: 1.4;
+  color: hsl(var(--foreground)) !important;
+}
+
+.tiptap ul,
+.tiptap ol {
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+
+.tiptap ul {
+  list-style-type: disc;
+}
+
+.tiptap ol {
+  list-style-type: decimal;
+}
+
+.tiptap li,
+.tiptap.prose li,
+.ProseMirror li {
+  margin: 0.25em 0;
+  color: hsl(var(--foreground)) !important;
+}
+
+.tiptap blockquote {
+  border-left: 3px solid hsl(var(--border));
+  padding-left: 1em;
+  margin: 1em 0;
+  font-style: italic;
+  color: hsl(var(--muted-foreground));
+}
+
+.tiptap code {
+  background: hsl(var(--muted));
+  border-radius: 0.25em;
+  padding: 0.15em 0.4em;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.tiptap pre {
+  background: hsl(var(--muted));
+  border-radius: 0.5em;
+  padding: 1em;
+  overflow-x: auto;
+  margin: 1em 0;
+}
+
+.tiptap pre code {
+  background: none;
+  padding: 0;
+}
+
+.tiptap strong {
+  font-weight: 700;
+}
+
+.tiptap em {
+  font-style: italic;
+}
+
+.tiptap u {
+  text-decoration: underline;
+}
+
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+  height: 0;
+}
+
+/* Text alignment for Tiptap */
+.tiptap [style*="text-align: left"] {
+  text-align: left;
+}
+
+.tiptap [style*="text-align: center"] {
+  text-align: center;
+}
+
+.tiptap [style*="text-align: right"] {
+  text-align: right;
+}
+
+/* Dark mode adjustments for Tiptap */
+.dark .tiptap code {
+  background: hsl(var(--secondary));
+}
+
+.dark .tiptap pre {
+  background: hsl(var(--secondary));
+}
+
+.dark .tiptap blockquote {
+  border-left-color: hsl(var(--border));
+}
