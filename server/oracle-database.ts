@@ -1,7 +1,13 @@
 import oracledb from 'oracledb';
 import path from 'path';
+import fs from 'fs';
 
-// Initialize Oracle Client with wallet location (requires Oracle Instant Client)
+// Determine if running in production (Docker/Railway) or local development
+const isProduction = process.env.NODE_ENV === 'production';
+
+// Initialize Oracle Client with wallet location
+// - Local development: Uses Oracle Instant Client from OCI_LIB_DIR
+// - Production: Uses bundled wallet in server/oracle_wallet
 let oracleClientAvailable = false;
 let oracleClientInitialized = false;
 
@@ -10,25 +16,63 @@ function initializeOracleClient() {
   oracleClientInitialized = true;
   
   try {
-    const walletLocation = process.env.TNS_ADMIN || path.resolve(process.cwd(), 'server', 'oracle_wallet');
-    const libDir = process.env.OCI_LIB_DIR || process.env.DYLD_LIBRARY_PATH?.split(':')[0];
+    // Determine wallet location
+    // Production: use bundled wallet in server/oracle_wallet
+    // Local dev: use TNS_ADMIN from .env (points to Instant Client wallet)
+    const productionWalletPath = path.resolve(process.cwd(), 'server', 'oracle_wallet');
+    const walletLocation = isProduction 
+      ? productionWalletPath 
+      : (process.env.TNS_ADMIN || productionWalletPath);
     
+    // Determine library directory
+    // Production: uses system Oracle Instant Client from Docker (ORACLE_HOME)
+    // Local dev: uses OCI_LIB_DIR from .env
+    const libDir = isProduction
+      ? (process.env.ORACLE_HOME || '/opt/oracle/instantclient_19_23')
+      : (process.env.OCI_LIB_DIR || process.env.DYLD_LIBRARY_PATH?.split(':')[0]);
+    
+    console.log(` Environment: ${isProduction ? 'PRODUCTION' : 'DEVELOPMENT'}`);
     console.log(' Initializing Oracle Client with libDir:', libDir);
-    console.log(' TNS_ADMIN:', walletLocation);
+    console.log(' Wallet location (TNS_ADMIN):', walletLocation);
     
-    oracledb.initOracleClient({
-      libDir: libDir,
+    // Check if wallet directory exists
+    if (!fs.existsSync(walletLocation)) {
+      console.warn(` Wallet directory not found: ${walletLocation}`);
+    }
+    
+    // Initialize Oracle client
+    // In production, libDir may not be needed if Oracle libs are in LD_LIBRARY_PATH
+    const initConfig: any = {
       configDir: walletLocation
-    });
+    };
+    
+    // Only set libDir for local development or if explicitly provided
+    if (!isProduction && libDir) {
+      initConfig.libDir = libDir;
+    }
+    
+    oracledb.initOracleClient(initConfig);
     oracleClientAvailable = true;
     console.log(' Oracle Client initialized successfully');
   } catch (error) {
-    console.log('  Oracle Client initialization:', (error as Error).message);
-    console.log(' Oracle Instant Client not installed. Database features will be limited.');
-    console.log(' To install Oracle Instant Client:');
-    console.log('   1. Download from: https://www.oracle.com/database/technologies/instant-client/macos-arm64-downloads.html');
-    console.log('   2. Extract to a folder');
-    console.log('   3. Set OCI_LIB_DIR in .env to the folder path');
+    const errorMessage = (error as Error).message;
+    
+    // If already initialized, that's okay
+    if (errorMessage.includes('already been called')) {
+      oracleClientAvailable = true;
+      console.log(' Oracle Client was already initialized');
+      return oracleClientAvailable;
+    }
+    
+    console.log(' Oracle Client initialization error:', errorMessage);
+    
+    if (!isProduction) {
+      console.log(' Oracle Instant Client not installed. Database features will be limited.');
+      console.log(' To install Oracle Instant Client:');
+      console.log('   1. Download from: https://www.oracle.com/database/technologies/instant-client/macos-arm64-downloads.html');
+      console.log('   2. Extract to a folder');
+      console.log('   3. Set OCI_LIB_DIR in .env to the folder path');
+    }
     oracleClientAvailable = false;
   }
   
@@ -58,19 +102,29 @@ export async function initializeDatabase() {
       throw new Error('Oracle database environment variables are not set');
     }
 
+    // Determine wallet location based on environment
+    // Production: bundled wallet in server/oracle_wallet
+    // Development: TNS_ADMIN from .env (Instant Client path)
+    const productionWalletPath = path.resolve(process.cwd(), 'server', 'oracle_wallet');
+    const walletLocation = isProduction
+      ? productionWalletPath
+      : (process.env.TNS_ADMIN || productionWalletPath);
+    
     // Build config with current env values (after .env is loaded)
     const currentDbConfig = {
       user: process.env.ORACLE_USER,
       password: process.env.ORACLE_PASSWORD,
       connectString: process.env.ORACLE_CONNECTION_STRING,
-      walletLocation: process.env.TNS_ADMIN || path.resolve(process.cwd(), 'server', 'oracle_wallet'),
-      walletPassword: process.env.ORACLE_WALLET_PASSWORD || "Oracle123456",
+      walletLocation: walletLocation,
+      walletPassword: process.env.ORACLE_WALLET_PASSWORD || '', // Empty for auto-login wallets in production
       poolMin: 1,
       poolMax: 10,
       poolIncrement: 1,
       poolTimeout: 300,
       stmtCacheSize: 23
     };
+    
+    console.log(' Using wallet location:', walletLocation);
 
     console.log('Initializing Oracle connection pool...');
     pool = await oracledb.createPool(currentDbConfig);
