@@ -9,8 +9,8 @@ import { log, serveStatic } from "./static";
 
 const app = express();
 
-// CORS configuration
-app.use(cors({
+// CORS configuration - must be before all other middleware
+const corsOptions = {
   origin: [
     'https://alteon.vercel.app',           // Vercel production
     'http://localhost:5173',               // Local development
@@ -19,9 +19,14 @@ app.use(cors({
     'http://127.0.0.1:5174'
   ],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'user-id']
-}));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'user-id', 'X-Requested-With'],
+  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
+};
+
+// Enable pre-flight for all routes
+app.options('*', cors(corsOptions));
+app.use(cors(corsOptions));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
