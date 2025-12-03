@@ -30,6 +30,10 @@ RUN npm install
 # Copy the rest of the application
 COPY . .
 
+# Fix permissions on Oracle wallet files
+RUN chmod -R 755 /app/server/oracle_wallet && \
+    chmod 644 /app/server/oracle_wallet/*
+
 # Build TypeScript
 RUN npm run build
 
