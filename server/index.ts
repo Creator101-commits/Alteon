@@ -9,24 +9,33 @@ import { log, serveStatic } from "./static";
 
 const app = express();
 
-// CORS configuration - must be before all other middleware
-const corsOptions = {
-  origin: [
-    'https://alteon.vercel.app',           // Vercel production
-    'http://localhost:5173',               // Local development
-    'http://localhost:5174', 
-    'http://127.0.0.1:5173', 
+// Manual CORS headers for all requests - ensures headers are always sent
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  const allowedOrigins = [
+    'https://alteon.vercel.app',
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://127.0.0.1:5173',
     'http://127.0.0.1:5174'
-  ],
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id', 'user-id', 'X-Requested-With'],
-  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
-};
-
-// Enable pre-flight for all routes
-app.options('*', cors(corsOptions));
-app.use(cors(corsOptions));
+  ];
+  
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+  
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-user-id, user-id, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  
+  // Handle preflight requests
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+  
+  next();
+});
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
