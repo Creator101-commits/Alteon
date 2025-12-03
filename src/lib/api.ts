@@ -9,6 +9,9 @@ import { memoryCache } from './cache';
 // Use Railway backend in production, localhost for development
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
+// Debug: Log the API URL being used (remove in production later)
+console.log('[API] Using base URL:', API_BASE_URL, 'VITE_API_URL:', import.meta.env.VITE_API_URL);
+
 // Wait for auth to be ready
 const waitForAuth = (): Promise<string | null> => {
   return new Promise((resolve) => {

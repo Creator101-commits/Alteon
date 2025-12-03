@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User, onAuthStateChanged } from "firebase/auth";
 import { auth, handleAuthRedirect, getUserData, signInWithGoogle, signUpWithEmail, signInWithEmail } from "@/lib/firebase";
+import { getApiUrl } from "@/lib/apiClient";
 
 interface AuthContextType {
   user: User | null;
@@ -33,7 +34,7 @@ interface AuthProviderProps {
 const syncUserToDatabase = async (user: User, userData: any) => {
   try {
     console.log(' Syncing user to Oracle database...', user.uid);
-    const response = await fetch('/api/auth/sync', {
+    const response = await fetch(getApiUrl('/api/auth/sync'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

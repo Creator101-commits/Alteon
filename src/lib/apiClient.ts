@@ -5,6 +5,20 @@
 // Use Railway backend in production, localhost for development
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
+/**
+ * Helper function to get full API URL
+ * Use this for all fetch calls to ensure correct backend URL in production
+ */
+export function getApiUrl(path: string): string {
+  // If path already has http/https, return as-is
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    return path;
+  }
+  // Ensure path starts with /
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${API_BASE_URL}${normalizedPath}`;
+}
+
 interface RetryOptions {
   maxRetries?: number;
   baseDelay?: number;
