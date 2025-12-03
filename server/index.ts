@@ -2,10 +2,10 @@ import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
 import { storage } from "./storage";
 import { optimizedStorage } from "./optimized-storage";
 import { documentProcessingService } from "./document-processing";
+import { log, serveStatic } from "./static";
 
 const app = express();
 
@@ -91,8 +91,12 @@ app.use((req, res, next) => {
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (process.env.NODE_ENV === "development") {
-    await setupVite(app, server);
+    // Dynamically import vite utilities only in development
+    const viteModule = await import("./vite");
+    await viteModule.setupVite(app, server);
   } else {
+    // In production, serve static files (if available)
+    // Frontend is deployed separately on Vercel, so this is optional
     serveStatic(app);
   }
 
