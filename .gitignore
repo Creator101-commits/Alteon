@@ -5,21 +5,10 @@
 .env.test.local
 .env.production.local
 
-# Oracle sensitive files (keep wallet folder for deployment, but ignore sensitive files)
-# server/oracle_wallet/ - ALLOWED for deployment
-server/oracle_wallet/*.p12
-server/oracle_wallet/*.sso
-server/oracle_wallet/*.pem
-server/oracle_wallet/ewallet.pem
-server/oracle_wallet/cwallet.sso
-server/oracle_wallet/keystore.jks
-server/oracle_wallet/truststore.jks
-server/migrations/*.csv
+# Oracle wallet - INCLUDED for Railway deployment (private repo only)
+# If this repo becomes public, move wallet files to Railway secrets
 server/oracle_wallet.zip
-server/*.sso
-server/*.p12
-server/*.pem
-server/*.jks
+server/migrations/*.csv
 
 # Dependencies
 node_modules/
