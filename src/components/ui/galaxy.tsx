@@ -289,9 +289,36 @@ export default function Galaxy({
 
     const mesh = new Mesh(gl, { geometry, program });
     let animateId: number;
+    let isVisible = true;
+    let isDocumentVisible = !document.hidden;
+
+    // Pause animation when element is not visible (IntersectionObserver)
+    const observer = new IntersectionObserver(
+      (entries) => {
+        isVisible = entries[0].isIntersecting;
+      },
+      { threshold: 0 }
+    );
+    observer.observe(ctn);
+
+    // Pause animation when tab is hidden
+    const handleVisibilityChange = () => {
+      isDocumentVisible = !document.hidden;
+      if (isDocumentVisible && isVisible) {
+        // Resume animation
+        animateId = requestAnimationFrame(update);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     function update(t: number) {
       animateId = requestAnimationFrame(update);
+
+      // Skip rendering when not visible - saves CPU/battery
+      if (!isVisible || !isDocumentVisible) {
+        return;
+      }
+
       if (!disableAnimation) {
         program.uniforms.uTime.value = t * 0.001;
         program.uniforms.uStarSpeed.value = (t * 0.001 * starSpeed) / 10.0;
@@ -334,6 +361,8 @@ export default function Galaxy({
 
     return () => {
       cancelAnimationFrame(animateId);
+      observer.disconnect();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener("resize", resize);
       if (mouseInteraction) {
         ctn.removeEventListener("mousemove", handleMouseMove);

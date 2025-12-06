@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { HabitCard } from "@/components/memoized";
 import { 
   Target, 
   Plus, 
@@ -265,15 +266,24 @@ export default function HabitTracker() {
     void performDelete();
   };
 
-  const getHabitProgress = (habit: Habit, date: string) => {
+  const getHabitProgress = useCallback((habit: Habit, date: string) => {
     const completed = habit.completions[date] || 0;
     return Math.min((completed / habit.targetCount) * 100, 100);
-  };
+  }, []);
 
-  const isHabitCompleted = (habit: Habit, date: string) => {
+  const isHabitCompleted = useCallback((habit: Habit, date: string) => {
     const completed = habit.completions[date] || 0;
     return completed >= habit.targetCount;
-  };
+  }, []);
+
+  // Memoized callback handlers for HabitCard
+  const handleToggleHabit = useCallback((habitId: string, date: string) => {
+    toggleHabitCompletion(habitId, date);
+  }, [habits, user]);
+
+  const handleDeleteHabit = useCallback((habitId: string) => {
+    setHabitToDelete(habitId);
+  }, []);
 
   const getTodayStats = () => {
     const today = format(new Date(), 'yyyy-MM-dd');
@@ -475,75 +485,15 @@ export default function HabitTracker() {
               const completed = isHabitCompleted(habit, today);
 
               return (
-                <Card key={habit.id} className="group hover:shadow-md transition-shadow">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div 
-                          className="w-4 h-4 rounded-full"
-                          style={{ backgroundColor: habit.color }}
-                        />
-                        <div>
-                          <h3 className="font-medium">{habit.name}</h3>
-                          {habit.description && (
-                            <p className="text-sm text-muted-foreground">{habit.description}</p>
-                          )}
-                          <div className="flex items-center gap-2 mt-1">
-                            <Badge variant="secondary" className="text-xs">
-                              {habit.category}
-                            </Badge>
-                            {habit.streak > 0 && (
-                              <div className="flex items-center gap-1 text-xs text-orange-600">
-                                <Flame className="h-3 w-3" />
-                                {habit.streak} day streak
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center space-x-2">
-                        <div className="text-right">
-                          <div className="text-sm text-muted-foreground">
-                            {habit.completions[today] || 0} / {habit.targetCount}
-                          </div>
-                          <Progress value={progress} className="w-20 mt-1" />
-                        </div>
-
-                        <Button
-                          variant={completed ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => toggleHabitCompletion(habit.id, today)}
-                          className="flex items-center gap-2"
-                        >
-                          {completed ? (
-                            <CheckCircle2 className="h-4 w-4" />
-                          ) : (
-                            <Circle className="h-4 w-4" />
-                          )}
-                          {completed ? 'Done' : 'Mark'}
-                        </Button>
-
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => setHabitToDelete(habit.id)}
-                              className="text-destructive focus:text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete Habit
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <HabitCard
+                  key={habit.id}
+                  habit={habit}
+                  today={today}
+                  progress={progress}
+                  completed={completed}
+                  onToggle={handleToggleHabit}
+                  onDelete={handleDeleteHabit}
+                />
               );
             })}
           </div>

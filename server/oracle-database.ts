@@ -117,11 +117,12 @@ export async function initializeDatabase() {
       connectString: process.env.ORACLE_CONNECTION_STRING,
       walletLocation: walletLocation,
       walletPassword: process.env.ORACLE_WALLET_PASSWORD || '', // Empty for auto-login wallets in production
-      poolMin: 1,
-      poolMax: 10,
-      poolIncrement: 1,
-      poolTimeout: 300,
-      stmtCacheSize: 23
+      poolMin: 3,              // Warm pool for common load (was 1)
+      poolMax: 15,             // Allow burst capacity (was 10)
+      poolIncrement: 2,        // Faster scaling (was 1)
+      poolTimeout: 120,        // 2 min idle timeout - save resources (was 300)
+      stmtCacheSize: 50,       // Cache more prepared statements (was 23)
+      queueTimeout: 30000,     // 30s queue timeout for waiting connections
     };
     
     console.log(' Using wallet location:', walletLocation);

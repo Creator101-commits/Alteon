@@ -318,19 +318,27 @@ const BoardItem: React.FC<BoardItemProps> = ({
   onToggleFavorite
 }) => {
   return (
-    <motion.button
+    <motion.div
       initial={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }}
+      role="button"
+      tabIndex={0}
       className={`
         w-full flex items-center justify-between p-2 rounded-md
-        transition-colors group
+        transition-colors group cursor-pointer
         ${isActive
           ? 'bg-accent text-accent-foreground'
           : 'hover:bg-accent/50'
         }
       `}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick();
+        }
+      }}
     >
       <div className="flex items-center gap-2 flex-1 min-w-0">
         <div
@@ -354,6 +362,6 @@ const BoardItem: React.FC<BoardItemProps> = ({
         </Button>
         {isActive && <ChevronRight className="h-4 w-4" />}
       </div>
-    </motion.button>
+    </motion.div>
   );
 };

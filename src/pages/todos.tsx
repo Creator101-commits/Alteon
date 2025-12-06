@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { TodoItem } from '@/components/memoized';
 import { 
   Plus, 
   Trash2, 
@@ -181,23 +182,28 @@ export default function Todos() {
     ));
   }, []);
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityColor = useCallback((priority: string) => {
     switch (priority) {
       case 'high': return 'text-red-500 bg-red-50 dark:bg-red-950';
       case 'medium': return 'text-yellow-500 bg-yellow-50 dark:bg-yellow-950';
       case 'low': return 'text-green-500 bg-green-50 dark:bg-green-950';
       default: return 'text-gray-500 bg-gray-50 dark:bg-gray-950';
     }
-  };
+  }, []);
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = useCallback((status: string) => {
     switch (status) {
       case 'completed': return 'text-green-600 bg-green-50 dark:bg-green-950';
       case 'in-progress': return 'text-blue-600 bg-blue-50 dark:bg-blue-950';
       case 'pending': return 'text-gray-600 bg-gray-50 dark:bg-gray-950';
       default: return 'text-gray-600 bg-gray-50 dark:bg-gray-950';
     }
-  };
+  }, []);
+
+  const handleEditClick = useCallback((todo: Todo) => {
+    setEditingTodo(todo);
+    setIsEditDialogOpen(true);
+  }, []);
 
   const stats = {
     total: todos.length,
@@ -360,90 +366,16 @@ export default function Todos() {
           </Card>
         ) : (
           filteredTodos.map((todo) => (
-            <Card key={todo.id} className={todo.status === 'completed' ? 'opacity-60' : ''}>
-              <CardContent className="pt-6">
-                <div className="flex items-start gap-4">
-                  <Checkbox
-                    checked={todo.status === 'completed'}
-                    onCheckedChange={() => handleToggleComplete(todo.id)}
-                    className="mt-1"
-                  />
-                  
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-4 mb-2">
-                      <h3 className={`font-medium ${todo.status === 'completed' ? 'line-through' : ''}`}>
-                        {todo.title}
-                      </h3>
-                      <div className="flex items-center gap-2">
-                        <Badge className={getPriorityColor(todo.priority)}>
-                          <Flag className="h-3 w-3 mr-1" />
-                          {todo.priority}
-                        </Badge>
-                        <Badge className={getStatusColor(todo.status)}>
-                          {todo.status}
-                        </Badge>
-                      </div>
-                    </div>
-                    
-                    {todo.description && (
-                      <p className="text-sm text-muted-foreground mb-3">
-                        {todo.description}
-                      </p>
-                    )}
-                    
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      {todo.dueDate && (
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          Due: {format(new Date(todo.dueDate), 'MMM d, yyyy')}
-                        </div>
-                      )}
-                      {todo.completedAt && (
-                        <div className="flex items-center gap-1">
-                          <CheckCircle2 className="h-3 w-3" />
-                          Completed: {format(new Date(todo.completedAt), 'MMM d, yyyy')}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Select
-                      value={todo.status}
-                      onValueChange={(value: any) => handleStatusChange(todo.id, value)}
-                    >
-                      <SelectTrigger className="w-[130px] h-8 text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="pending">Pending</SelectItem>
-                        <SelectItem value="in-progress">In Progress</SelectItem>
-                        <SelectItem value="completed">Completed</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setEditingTodo(todo);
-                        setIsEditDialogOpen(true);
-                      }}
-                    >
-                      <Edit2 className="h-4 w-4" />
-                    </Button>
-                    
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleDeleteTodo(todo.id)}
-                    >
-                      <Trash2 className="h-4 w-4 text-red-500" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <TodoItem
+              key={todo.id}
+              todo={todo}
+              onToggleComplete={handleToggleComplete}
+              onStatusChange={handleStatusChange}
+              onEdit={handleEditClick}
+              onDelete={handleDeleteTodo}
+              getPriorityColor={getPriorityColor}
+              getStatusColor={getStatusColor}
+            />
           ))
         )}
       </div>

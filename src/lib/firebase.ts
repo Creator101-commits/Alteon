@@ -354,8 +354,6 @@ export const signInWithEmail = async (email: string, password: string) => {
  */
 export const refreshGoogleToken = async (userId: string): Promise<{ accessToken: string; expiresAt: Date } | null> => {
   try {
-    console.log(' Refreshing Google token for user:', userId);
-
     // Get refresh token from localStorage as fallback
     const localRefreshToken = localStorage.getItem('google_calendar_refresh_token');
 
@@ -372,16 +370,13 @@ export const refreshGoogleToken = async (userId: string): Promise<{ accessToken:
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error(' Failed to refresh token:', errorData.message);
+      // Silently return null - caller will handle appropriately
       return null;
     }
 
     const tokenData = await response.json();
     const newAccessToken = tokenData.accessToken;
     const expiresAt = new Date(tokenData.expiresAt);
-
-    console.log(' Token refreshed successfully, expires at:', expiresAt);
 
     // Update access token in localStorage
     localStorage.setItem('google_calendar_access_token', newAccessToken);

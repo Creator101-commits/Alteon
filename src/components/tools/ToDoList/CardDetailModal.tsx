@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, AlignLeft, Calendar } from 'lucide-react';
+import { X, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
@@ -25,7 +24,6 @@ export const CardDetailModal: React.FC = () => {
   } = useUIContext();
 
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
   const [isCompleted, setIsCompleted] = useState(false);
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
 
@@ -35,7 +33,6 @@ export const CardDetailModal: React.FC = () => {
   useEffect(() => {
     if (selectedCard) {
       setTitle(selectedCard.title);
-      setDescription(selectedCard.description || '');
       setIsCompleted(selectedCard.isCompleted || false);
       setDueDate(selectedCard.dueDate ? new Date(selectedCard.dueDate) : undefined);
     }
@@ -46,7 +43,6 @@ export const CardDetailModal: React.FC = () => {
 
     await updateCard(selectedCard.id, {
       title,
-      description,
       isCompleted,
       dueDate: dueDate || null
     });
@@ -60,13 +56,7 @@ export const CardDetailModal: React.FC = () => {
     setSaveTimeout(setTimeout(handleSave, 1000));
   };
 
-  const handleDescriptionChange = (value: string) => {
-    setDescription(value);
-    
-    // Debounce auto-save
-    if (saveTimeout) clearTimeout(saveTimeout);
-    setSaveTimeout(setTimeout(handleSave, 2000));
-  };
+
 
   const handleDelete = async () => {
     if (!selectedCard) return;
@@ -134,7 +124,6 @@ export const CardDetailModal: React.FC = () => {
                         if (selectedCard) {
                           await updateCard(selectedCard.id, {
                             title,
-                            description,
                             isCompleted: newCompleted
                           });
                         }
@@ -173,7 +162,6 @@ export const CardDetailModal: React.FC = () => {
                           if (selectedCard) {
                             updateCard(selectedCard.id, {
                               title,
-                              description,
                               isCompleted,
                               dueDate: date || null
                             });
@@ -182,23 +170,6 @@ export const CardDetailModal: React.FC = () => {
                       }}
                       placeholder="Set a due date"
                     />
-                  </div>
-
-                  {/* Description */}
-                  <div>
-                    <Label className="flex items-center gap-2 mb-2">
-                      <AlignLeft className="h-4 w-4" />
-                      Description
-                    </Label>
-                    <Textarea
-                      value={description}
-                      onChange={(e) => handleDescriptionChange(e.target.value)}
-                      placeholder="Add a more detailed description..."
-                      className="min-h-[120px] resize-none"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Auto-saves while typing
-                    </p>
                   </div>
 
                   {/* Metadata */}

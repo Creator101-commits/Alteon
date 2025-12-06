@@ -2166,7 +2166,18 @@ export class OracleStorage {
     }
     if (card.dueDate !== undefined) {
       updates.push('due_date = :dueDate');
-      params.dueDate = card.dueDate;
+      // Ensure dueDate is either null or a valid Date object
+      if (card.dueDate === null) {
+        params.dueDate = null;
+      } else if (card.dueDate instanceof Date && !isNaN(card.dueDate.getTime())) {
+        params.dueDate = card.dueDate;
+      } else if (typeof card.dueDate === 'string') {
+        const parsed = new Date(card.dueDate);
+        params.dueDate = !isNaN(parsed.getTime()) ? parsed : null;
+      } else {
+        params.dueDate = null;
+      }
+      console.log(' updateCard dueDate:', { original: card.dueDate, parsed: params.dueDate, type: typeof params.dueDate });
     }
     if (card.isCompleted !== undefined) {
       updates.push('is_completed = :isCompleted');
@@ -2181,10 +2192,14 @@ export class OracleStorage {
     
     updates.push('updated_at = :updatedAt');
     
-    await executeQuery(
-      `UPDATE cards SET ${updates.join(', ')} WHERE id = :id`,
-      params
-    );
+    const sql = `UPDATE cards SET ${updates.join(', ')} WHERE id = :id`;
+    console.log(' updateCard SQL:', sql);
+    console.log(' updateCard params:', JSON.stringify(params, (key, value) => {
+      if (value instanceof Date) return `[Date: ${value.toISOString()}]`;
+      return value;
+    }));
+    
+    await executeQuery(sql, params);
     
     return this.getCard(id);
   }

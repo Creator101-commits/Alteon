@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
+import compression from "compression";
 import { registerRoutes } from "./routes";
 import { storage } from "./storage";
 import { optimizedStorage } from "./optimized-storage";
@@ -8,6 +9,9 @@ import { documentProcessingService } from "./document-processing";
 import { log, serveStatic } from "./static";
 
 const app = express();
+
+// Enable gzip compression for all responses
+app.use(compression());
 
 // Manual CORS headers for all requests - ensures headers are always sent
 app.use((req, res, next) => {

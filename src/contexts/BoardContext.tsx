@@ -299,8 +299,14 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [lists.length, getAuthHeaders, toast]);
 
-  // Update list
+  // Update list - with optimistic update
   const updateList = useCallback(async (id: string, updates: Partial<TodoList>) => {
+    // Store previous state for rollback
+    const previousLists = lists;
+    
+    // Optimistic update
+    setLists(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
+    
     try {
       const response = await fetch(`/api/lists/${id}`, {
         method: 'PATCH',
@@ -313,16 +319,26 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const updated = await response.json();
       setLists(prev => prev.map(l => l.id === id ? updated : l));
     } catch (err) {
+      // Rollback on error
+      setLists(previousLists);
       toast({
         title: 'Error',
         description: 'Failed to update list',
         variant: 'destructive'
       });
     }
-  }, [getAuthHeaders, toast]);
+  }, [lists, getAuthHeaders, toast]);
 
-  // Delete list
+  // Delete list - with optimistic update
   const deleteList = useCallback(async (id: string) => {
+    // Store previous state for rollback
+    const previousLists = lists;
+    const previousCards = cards;
+    
+    // Optimistic update
+    setLists(prev => prev.filter(l => l.id !== id));
+    setCards(prev => prev.filter(c => c.listId !== id));
+    
     try {
       const response = await fetch(`/api/lists/${id}`, {
         method: 'DELETE',
@@ -330,17 +346,17 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
       
       if (!response.ok) throw new Error('Failed to delete list');
-      
-      setLists(prev => prev.filter(l => l.id !== id));
-      setCards(prev => prev.filter(c => c.listId !== id));
     } catch (err) {
+      // Rollback on error
+      setLists(previousLists);
+      setCards(previousCards);
       toast({
         title: 'Error',
         description: 'Failed to delete list',
         variant: 'destructive'
       });
     }
-  }, [getAuthHeaders, toast]);
+  }, [lists, cards, getAuthHeaders, toast]);
 
   // Create card
   const createCard = useCallback(async (listId: string, title: string) => {
@@ -400,8 +416,16 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [user?.uid, inboxCards.length, getAuthHeaders, toast]);
 
-  // Update card
+  // Update card - with optimistic update
   const updateCard = useCallback(async (id: string, updates: Partial<Card>) => {
+    // Store previous state for rollback
+    const previousCards = cards;
+    const previousInboxCards = inboxCards;
+    
+    // Optimistic update
+    setCards(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+    setInboxCards(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
+    
     try {
       const response = await fetch(`/api/cards/${id}`, {
         method: 'PATCH',
@@ -412,18 +436,31 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (!response.ok) throw new Error('Failed to update card');
       
       const updated = await response.json();
+      // Update with actual server response
       setCards(prev => prev.map(c => c.id === id ? updated : c));
+      setInboxCards(prev => prev.map(c => c.id === id ? updated : c));
     } catch (err) {
+      // Rollback on error
+      setCards(previousCards);
+      setInboxCards(previousInboxCards);
       toast({
         title: 'Error',
         description: 'Failed to update card',
         variant: 'destructive'
       });
     }
-  }, [getAuthHeaders, toast]);
+  }, [cards, inboxCards, getAuthHeaders, toast]);
 
-  // Delete card
+  // Delete card - with optimistic update
   const deleteCard = useCallback(async (id: string) => {
+    // Store previous state for rollback
+    const previousCards = cards;
+    const previousInboxCards = inboxCards;
+    
+    // Optimistic update
+    setCards(prev => prev.filter(c => c.id !== id));
+    setInboxCards(prev => prev.filter(c => c.id !== id));
+    
     try {
       const response = await fetch(`/api/cards/${id}`, {
         method: 'DELETE',
@@ -432,18 +469,45 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       if (!response.ok) throw new Error('Failed to delete card');
       
-      setCards(prev => prev.filter(c => c.id !== id));
+      // Success - no need to update state, already done optimistically
     } catch (err) {
+      // Rollback on error
+      setCards(previousCards);
+      setInboxCards(previousInboxCards);
       toast({
         title: 'Error',
         description: 'Failed to delete card',
         variant: 'destructive'
       });
     }
-  }, [getAuthHeaders, toast]);
+  }, [cards, inboxCards, getAuthHeaders, toast]);
 
-  // Move card
+  // Move card - with optimistic update
   const moveCard = useCallback(async (cardId: string, newListId: string | null, newPosition: number) => {
+    // Store previous state for rollback
+    const previousCards = cards;
+    const previousInboxCards = inboxCards;
+    
+    // Find the card being moved
+    const movingCard = cards.find(c => c.id === cardId) || inboxCards.find(c => c.id === cardId);
+    if (!movingCard) return;
+    
+    const wasInInbox = inboxCards.some(c => c.id === cardId);
+    
+    // Optimistic update
+    if (newListId === null) {
+      // Moving to inbox
+      setCards(prev => prev.filter(c => c.id !== cardId));
+      setInboxCards(prev => [...prev.filter(c => c.id !== cardId), { ...movingCard, listId: null, position: newPosition }]);
+    } else if (wasInInbox) {
+      // Moving from inbox to a list
+      setInboxCards(prev => prev.filter(c => c.id !== cardId));
+      setCards(prev => [...prev.filter(c => c.id !== cardId), { ...movingCard, listId: newListId, position: newPosition }]);
+    } else {
+      // Moving within/between lists
+      setCards(prev => prev.map(c => c.id === cardId ? { ...c, listId: newListId, position: newPosition } : c));
+    }
+    
     try {
       const response = await fetch(`/api/cards/${cardId}/move`, {
         method: 'PATCH',
@@ -455,22 +519,16 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       const updated = await response.json();
       
-      // If moving from inbox to a list, remove from inboxCards and add to cards
-      const wasInInbox = inboxCards.some(c => c.id === cardId);
-      if (wasInInbox && newListId) {
-        setInboxCards(prev => prev.filter(c => c.id !== cardId));
-        setCards(prev => [...prev, updated]);
-      } else if (!wasInInbox) {
-        // Card was already in cards, just update it
+      // Update with actual server response
+      if (newListId === null) {
+        setInboxCards(prev => prev.map(c => c.id === cardId ? updated : c));
+      } else {
         setCards(prev => prev.map(c => c.id === cardId ? updated : c));
       }
-      
-      // If moving to inbox (newListId is null)
-      if (newListId === null) {
-        setCards(prev => prev.filter(c => c.id !== cardId));
-        setInboxCards(prev => [...prev, updated]);
-      }
     } catch (err) {
+      // Rollback on error
+      setCards(previousCards);
+      setInboxCards(previousInboxCards);
       toast({
         title: 'Error',
         description: 'Failed to move card',
@@ -478,7 +536,7 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
       throw err;
     }
-  }, [inboxCards, getAuthHeaders, toast]);
+  }, [cards, inboxCards, getAuthHeaders, toast]);
 
   // Create label
   const createLabel = useCallback(async (name: string, color: string) => {

@@ -1,6 +1,5 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
 import { optimizedStorage } from "./optimized-storage";
 import { z } from "zod";
 import { 
@@ -27,11 +26,11 @@ import {
 // Helper to create default lists for a new board
 async function createDefaultListsForBoard(boardId: string) {
   const defaultTitles = ["Urgent", "Today", "This Week", "Later"];
-  console.log(`🔧 Creating ${defaultTitles.length} default lists for board ${boardId}`);
+  debugLog(`🔧 Creating ${defaultTitles.length} default lists for board ${boardId}`);
 
   for (let index = 0; index < defaultTitles.length; index++) {
     const title = defaultTitles[index];
-    console.log(`  → Creating list "${title}" at position ${index}`);
+    debugLog(`  → Creating list "${title}" at position ${index}`);
 
     const listData = insertTodoListSchema.parse({
       boardId,
@@ -41,9 +40,37 @@ async function createDefaultListsForBoard(boardId: string) {
     });
 
     const created = await optimizedStorage.createList(listData as any);
-    console.log(`  ✓ Created list "${title}" with ID: ${created.id}`);
+    debugLog(`  ✓ Created list "${title}" with ID: ${created.id}`);
   }
-  console.log(`✅ Finished creating default lists for board ${boardId}`);
+  debugLog(`✅ Finished creating default lists for board ${boardId}`);
+}
+
+// Conditional logging helper - only logs in development
+const isDev = process.env.NODE_ENV !== 'production';
+const debugLog = (...args: any[]) => {
+  if (isDev) console.log(...args);
+};
+
+// Pagination helper - extracts page, limit, offset from query params
+function getPaginationParams(req: any): { page: number; limit: number; offset: number } {
+  const page = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 50));
+  const offset = (page - 1) * limit;
+  return { page, limit, offset };
+}
+
+// Pagination response helper
+function paginatedResponse<T>(items: T[], total: number, page: number, limit: number) {
+  return {
+    data: items,
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+      hasMore: (page * limit) < total
+    }
+  };
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -53,19 +80,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Firebase token verification is handled by frontend
     const userId = req.headers['x-user-id'] || req.headers['user-id'];
     
-    console.log(' Server Debug - Headers:', {
-      'x-user-id': req.headers['x-user-id'],
-      'user-id': req.headers['user-id'],
-      allHeaders: Object.keys(req.headers)
-    });
+    debugLog('🔍 getUserId called, userId:', userId ? 'present' : 'missing');
     
     if (userId) {
-      console.log(' User ID found:', userId);
       return userId as string;
     }
     
     // No fallback - require proper authentication
-    console.error(' No user ID provided in request headers');
+    console.error('❌ No user ID provided in request headers');
     throw new Error('Authentication required: No user ID provided');
   };
 
@@ -102,9 +124,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Only update if there are changes
         if (Object.keys(updateData).length > 0) {
           user = await optimizedStorage.updateUser(uid, updateData);
-          console.log(` Updated user: ${email}`);
+          debugLog(` Updated user: ${email}`);
         } else {
-          console.log(` User already up to date: ${email}`);
+          debugLog(` User already up to date: ${email}`);
         }
       } else {
         // Create new user
@@ -121,7 +143,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Use Firebase UID as the Oracle database user ID
         user = await optimizedStorage.createUserWithId(uid, userData);
-        console.log(` Created new user: ${email}`);
+        debugLog(` Created new user: ${email}`);
       }
       
       res.json({ success: true, user });
@@ -164,39 +186,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const calendarsData = await calendarsResponse.json();
       const calendars = calendarsData.items || [];
 
-      // Fetch events from all calendars
-      const allEvents: any[] = [];
-      
-      for (const calendar of calendars) {
-        try {
-          const params = new URLSearchParams({
-            singleEvents: 'true',
-            orderBy: 'startTime',
-            maxResults: '2500',
-            timeMin: timeMin.toISOString(),
-            timeMax: timeMax.toISOString(),
-          });
+      // Fetch events from all calendars IN PARALLEL using Promise.allSettled
+      const calendarPromises = calendars.map(async (calendar: any) => {
+        const params = new URLSearchParams({
+          singleEvents: 'true',
+          orderBy: 'startTime',
+          maxResults: '500', // Reduced from 2500 for better performance
+          timeMin: timeMin.toISOString(),
+          timeMax: timeMax.toISOString(),
+        });
 
+        // Use AbortController for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout per calendar
+
+        try {
           const eventsResponse = await fetch(
             `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendar.id)}/events?${params}`,
-            { headers: { 'Authorization': `Bearer ${accessToken}` } }
+            { 
+              headers: { 'Authorization': `Bearer ${accessToken}` },
+              signal: controller.signal
+            }
           );
+          clearTimeout(timeoutId);
 
           if (eventsResponse.ok) {
             const eventsData = await eventsResponse.json();
-            const events = (eventsData.items || []).map((event: any) => ({
-              ...event,
-              calendarId: calendar.id,
-              calendarName: calendar.summary,
-            }));
-            allEvents.push(...events);
+            return {
+              calendar,
+              events: (eventsData.items || []).map((event: any) => ({
+                ...event,
+                calendarId: calendar.id,
+                calendarName: calendar.summary,
+              }))
+            };
           }
+          return { calendar, events: [] };
         } catch (error) {
+          clearTimeout(timeoutId);
           console.warn(`Failed to fetch events from calendar ${calendar.summary}:`, error);
+          return { calendar, events: [] };
         }
-      }
+      });
 
-      console.log(` Fetched ${allEvents.length} calendar events for user ${userId}`);
+      const results = await Promise.allSettled(calendarPromises);
+      const allEvents = results
+        .filter((r): r is PromiseFulfilledResult<{ calendar: any; events: any[] }> => r.status === 'fulfilled')
+        .flatMap(r => r.value.events);
+
+      debugLog(` Fetched ${allEvents.length} calendar events for user ${userId}`);
 
       res.json({
         success: true,
@@ -221,8 +259,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Just log the calendar sync, don't create assignments from calendar events
-      console.log(` Received ${events.length} calendar events for user ${userId}`);
-      console.log('Note: Calendar events are NOT synced as assignments');
+      debugLog(` Received ${events.length} calendar events for user ${userId}`);
+      debugLog('Note: Calendar events are NOT synced as assignments');
 
       res.json({
         success: true,
@@ -238,7 +276,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User routes
   app.get("/api/users/:id", async (req, res) => {
     try {
-      const user = await storage.getUser(req.params.id);
+      const user = await optimizedStorage.getUser(req.params.id);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -251,7 +289,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/users", async (req, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
-      const user = await storage.createUser(userData);
+      const user = await optimizedStorage.createUser(userData);
       res.status(201).json(user);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -264,7 +302,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/users/:id", async (req, res) => {
     try {
       const userData = insertUserSchema.partial().parse(req.body);
-      const user = await storage.updateUser(req.params.id, userData);
+      const user = await optimizedStorage.updateUser(req.params.id, userData);
       if (!user) {
         return res.status(404).json({ message: "User not found" });
       }
@@ -280,7 +318,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Class routes
   app.get("/api/users/:userId/classes", async (req, res) => {
     try {
-      const classes = await storage.getClassesByUserId(req.params.userId);
+      const classes = await optimizedStorage.getClassesByUserId(req.params.userId);
       res.json(classes);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch classes" });
@@ -290,7 +328,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/users/:userId/classes", async (req, res) => {
     try {
       const classData = insertClassSchema.parse({ ...req.body, userId: req.params.userId });
-      const newClass = await storage.createClass(classData);
+      const newClass = await optimizedStorage.createClass(classData);
       res.status(201).json(newClass);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -302,7 +340,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/classes/:id", async (req, res) => {
     try {
-      const deleted = await storage.deleteClass(req.params.id);
+      const deleted = await optimizedStorage.deleteClass(req.params.id);
       if (!deleted) {
         return res.status(404).json({ message: "Class not found" });
       }
@@ -315,8 +353,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Assignment routes
   app.get("/api/users/:userId/assignments", async (req, res) => {
     try {
-      const assignments = await storage.getAssignmentsByUserId(req.params.userId);
-      res.json(assignments);
+      // Support pagination via query params: ?page=1&limit=50&status=pending
+      const usePagination = req.query.page || req.query.limit;
+      
+      if (usePagination) {
+        const { page, limit, offset } = getPaginationParams(req);
+        const status = req.query.status as string | undefined;
+        
+        const result = await optimizedStorage.getAssignmentsByUserIdPaginated(
+          req.params.userId,
+          { limit, offset, status }
+        );
+        
+        res.json(paginatedResponse(result.items, result.total, page, limit));
+      } else {
+        // Backward compatible - return all assignments
+        const assignments = await optimizedStorage.getAssignmentsByUserId(req.params.userId);
+        res.json(assignments);
+      }
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch assignments" });
     }
@@ -330,7 +384,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         dueDate: req.body.dueDate ? new Date(req.body.dueDate) : null,
       };
       const assignmentData = insertAssignmentSchema.parse(bodyWithParsedDate);
-      const assignment = await storage.createAssignment(assignmentData);
+      const assignment = await optimizedStorage.createAssignment(assignmentData);
       res.status(201).json(assignment);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -342,14 +396,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/assignments/:id", async (req, res) => {
     try {
-      console.log('PUT /api/assignments/:id - Request body:', req.body);
+      debugLog('PUT /api/assignments/:id - Request body:', req.body);
       const bodyWithParsedDate = {
         ...req.body,
         dueDate: req.body.dueDate ? new Date(req.body.dueDate) : req.body.dueDate,
       };
       const assignmentData = insertAssignmentSchema.partial().parse(bodyWithParsedDate);
-      console.log('PUT /api/assignments/:id - Parsed data:', assignmentData);
-      const assignment = await storage.updateAssignment(req.params.id, assignmentData);
+      debugLog('PUT /api/assignments/:id - Parsed data:', assignmentData);
+      const assignment = await optimizedStorage.updateAssignment(req.params.id, assignmentData);
       if (!assignment) {
         return res.status(404).json({ message: "Assignment not found" });
       }
@@ -366,7 +420,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/assignments/:id", async (req, res) => {
     try {
-      const deleted = await storage.deleteAssignment(req.params.id);
+      const deleted = await optimizedStorage.deleteAssignment(req.params.id);
       if (!deleted) {
         return res.status(404).json({ message: "Assignment not found" });
       }
@@ -379,8 +433,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Flashcard routes
   app.get("/api/users/:userId/flashcards", async (req, res) => {
     try {
-      const flashcards = await storage.getFlashcardsByUserId(req.params.userId);
-      res.json(flashcards);
+      // Support pagination via query params
+      const usePagination = req.query.page || req.query.limit;
+      
+      if (usePagination) {
+        const { page, limit, offset } = getPaginationParams(req);
+        const deckId = req.query.deckId as string | undefined;
+        
+        const result = await optimizedStorage.getFlashcardsByUserIdPaginated(
+          req.params.userId,
+          { limit, offset, deckId }
+        );
+        
+        res.json(paginatedResponse(result.items, result.total, page, limit));
+      } else {
+        const flashcards = await optimizedStorage.getFlashcardsByUserId(req.params.userId);
+        res.json(flashcards);
+      }
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch flashcards" });
     }
@@ -389,7 +458,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/users/:userId/flashcards", async (req, res) => {
     try {
       const flashcardData = insertFlashcardSchema.parse({ ...req.body, userId: req.params.userId });
-      const flashcard = await storage.createFlashcard(flashcardData);
+      const flashcard = await optimizedStorage.createFlashcard(flashcardData);
       res.status(201).json(flashcard);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -402,7 +471,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/flashcards/:id", async (req, res) => {
     try {
       const flashcardData = insertFlashcardSchema.partial().parse(req.body);
-      const flashcard = await storage.updateFlashcard(req.params.id, flashcardData);
+      const flashcard = await optimizedStorage.updateFlashcard(req.params.id, flashcardData);
       if (!flashcard) {
         return res.status(404).json({ message: "Flashcard not found" });
       }
@@ -417,7 +486,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/flashcards/:id", async (req, res) => {
     try {
-      const deleted = await storage.deleteFlashcard(req.params.id);
+      const deleted = await optimizedStorage.deleteFlashcard(req.params.id);
       if (!deleted) {
         return res.status(404).json({ message: "Flashcard not found" });
       }
@@ -430,7 +499,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Flashcard Deck routes
   app.get("/api/users/:userId/flashcard-decks", async (req, res) => {
     try {
-      const decks = await storage.getDecksByUserId(req.params.userId);
+      const decks = await optimizedStorage.getDecksByUserId(req.params.userId);
       res.json(decks);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch decks" });
@@ -440,7 +509,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/users/:userId/flashcard-decks", async (req, res) => {
     try {
       const deckData = insertFlashcardDeckSchema.parse({ ...req.body, userId: req.params.userId });
-      const deck = await storage.createDeck(deckData);
+      const deck = await optimizedStorage.createDeck(deckData);
       res.status(201).json(deck);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -453,7 +522,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/flashcard-decks/:id", async (req, res) => {
     try {
       const deckData = insertFlashcardDeckSchema.partial().parse(req.body);
-      const deck = await storage.updateDeck(req.params.id, deckData);
+      const deck = await optimizedStorage.updateDeck(req.params.id, deckData);
       if (!deck) {
         return res.status(404).json({ message: "Deck not found" });
       }
@@ -468,7 +537,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/flashcard-decks/:id", async (req, res) => {
     try {
-      const deleted = await storage.deleteDeck(req.params.id);
+      const deleted = await optimizedStorage.deleteDeck(req.params.id);
       if (!deleted) {
         return res.status(404).json({ message: "Deck not found" });
       }
@@ -480,7 +549,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/flashcard-decks/:deckId/flashcards", async (req, res) => {
     try {
-      const flashcards = await storage.getFlashcardsByDeck(req.params.deckId);
+      const flashcards = await optimizedStorage.getFlashcardsByDeck(req.params.deckId);
       res.json(flashcards);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch flashcards for deck" });
@@ -496,7 +565,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId,
         flashcardId: req.params.id,
       });
-      const review = await storage.recordReview(reviewData);
+      const review = await optimizedStorage.recordReview(reviewData);
       res.status(201).json(review);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -509,7 +578,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/users/:userId/flashcard-stats/daily", async (req, res) => {
     try {
       const days = parseInt(req.query.days as string) || 30;
-      const stats = await storage.getDailyStats(req.params.userId, days);
+      const stats = await optimizedStorage.getDailyStats(req.params.userId, days);
       res.json(stats);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch daily stats" });
@@ -518,7 +587,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/users/:userId/flashcard-stats/decks", async (req, res) => {
     try {
-      const stats = await storage.getDeckStats(req.params.userId);
+      const stats = await optimizedStorage.getDeckStats(req.params.userId);
       res.json(stats);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch deck stats" });
@@ -528,7 +597,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/users/:userId/flashcard-stats/retention", async (req, res) => {
     try {
       const deckId = req.query.deckId as string | undefined;
-      const curve = await storage.getRetentionCurve(req.params.userId, deckId);
+      const curve = await optimizedStorage.getRetentionCurve(req.params.userId, deckId);
       res.json(curve);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch retention curve" });
@@ -538,7 +607,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Mood entry routes
   app.get("/api/users/:userId/mood-entries", async (req, res) => {
     try {
-      const entries = await storage.getMoodEntriesByUserId(req.params.userId);
+      const entries = await optimizedStorage.getMoodEntriesByUserId(req.params.userId);
       res.json(entries);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch mood entries" });
@@ -547,9 +616,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/users/:userId/mood-entries", async (req, res) => {
     try {
-      console.log(' Creating mood entry with data:', { ...req.body, userId: req.params.userId });
+      debugLog(' Creating mood entry with data:', { ...req.body, userId: req.params.userId });
       const entryData = insertMoodEntrySchema.parse({ ...req.body, userId: req.params.userId });
-      const entry = await storage.createMoodEntry(entryData);
+      const entry = await optimizedStorage.createMoodEntry(entryData);
       res.status(201).json(entry);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -564,7 +633,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Journal entry routes
   app.get("/api/users/:userId/journal-entries", async (req, res) => {
     try {
-      const entries = await storage.getJournalEntriesByUserId(req.params.userId);
+      const entries = await optimizedStorage.getJournalEntriesByUserId(req.params.userId);
       res.json(entries);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch journal entries" });
@@ -573,9 +642,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/users/:userId/journal-entries", async (req, res) => {
     try {
-      console.log(' Creating journal entry with data:', { ...req.body, userId: req.params.userId });
+      debugLog(' Creating journal entry with data:', { ...req.body, userId: req.params.userId });
       const entryData = insertJournalEntrySchema.parse({ ...req.body, userId: req.params.userId });
-      const entry = await storage.createJournalEntry(entryData);
+      const entry = await optimizedStorage.createJournalEntry(entryData);
       res.status(201).json(entry);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -590,7 +659,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/journal-entries/:id", async (req, res) => {
     try {
       const entryData = insertJournalEntrySchema.partial().parse(req.body);
-      const entry = await storage.updateJournalEntry(req.params.id, entryData);
+      const entry = await optimizedStorage.updateJournalEntry(req.params.id, entryData);
       if (!entry) {
         return res.status(404).json({ message: "Journal entry not found" });
       }
@@ -605,7 +674,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/journal-entries/:id", async (req, res) => {
     try {
-      const deleted = await storage.deleteJournalEntry(req.params.id);
+      const deleted = await optimizedStorage.deleteJournalEntry(req.params.id);
       if (!deleted) {
         return res.status(404).json({ message: "Journal entry not found" });
       }
@@ -618,7 +687,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Pomodoro session routes
   app.get("/api/users/:userId/pomodoro-sessions", async (req, res) => {
     try {
-      const sessions = await storage.getPomodoroSessionsByUserId(req.params.userId);
+      const sessions = await optimizedStorage.getPomodoroSessionsByUserId(req.params.userId);
       res.json(sessions);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch pomodoro sessions" });
@@ -628,7 +697,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/users/:userId/pomodoro-sessions", async (req, res) => {
     try {
       const sessionData = insertPomodoroSessionSchema.parse({ ...req.body, userId: req.params.userId });
-      const session = await storage.createPomodoroSession(sessionData);
+      const session = await optimizedStorage.createPomodoroSession(sessionData);
       res.status(201).json(session);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -698,7 +767,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI summary routes
   app.get("/api/users/:userId/ai-summaries", async (req, res) => {
     try {
-      const summaries = await storage.getAiSummariesByUserId(req.params.userId);
+      const summaries = await optimizedStorage.getAiSummariesByUserId(req.params.userId);
       res.json(summaries);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch AI summaries" });
@@ -708,7 +777,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/users/:userId/ai-summaries", async (req, res) => {
     try {
       const summaryData = insertAiSummarySchema.parse({ ...req.body, userId: req.params.userId });
-      const summary = await storage.createAiSummary(summaryData);
+      const summary = await optimizedStorage.createAiSummary(summaryData);
       res.status(201).json(summary);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -720,7 +789,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/ai-summaries/:id", async (req, res) => {
     try {
-      const deleted = await storage.deleteAiSummary(req.params.id);
+      const deleted = await optimizedStorage.deleteAiSummary(req.params.id);
       if (!deleted) {
         return res.status(404).json({ message: "AI summary not found" });
       }
@@ -735,10 +804,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/notes", async (req, res) => {
     try {
       const userId = getUserId(req);
-      console.log(' Fetching notes for user:', userId);
-      const notes = await storage.getNotesByUserId(userId);
-      console.log(' Found notes:', notes.length);
-      res.json(notes);
+      debugLog(' Fetching notes for user:', userId);
+      
+      // Support pagination via query params
+      const usePagination = req.query.page || req.query.limit;
+      
+      if (usePagination) {
+        const { page, limit, offset } = getPaginationParams(req);
+        const result = await optimizedStorage.getNotesByUserIdPaginated(userId, { limit, offset });
+        debugLog(' Found notes (paginated):', result.items.length, 'of', result.total);
+        res.json(paginatedResponse(result.items, result.total, page, limit));
+      } else {
+        const notes = await optimizedStorage.getNotesByUserId(userId);
+        debugLog(' Found notes:', notes.length);
+        res.json(notes);
+      }
     } catch (error) {
       console.error(' Error fetching notes:', error);
       res.status(500).json({ message: "Failed to fetch notes" });
@@ -749,7 +829,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = getUserId(req);
       const noteData = insertNoteSchema.parse({ ...req.body, userId });
-      const note = await storage.createNote(noteData);
+      const note = await optimizedStorage.createNote(noteData);
       res.status(201).json(note);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -762,7 +842,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/notes/:id", async (req, res) => {
     try {
       const noteData = insertNoteSchema.partial().parse(req.body);
-      const note = await storage.updateNote(req.params.id, noteData);
+      const note = await optimizedStorage.updateNote(req.params.id, noteData);
       if (!note) {
         return res.status(404).json({ message: "Note not found" });
       }
@@ -777,7 +857,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/notes/:id", async (req, res) => {
     try {
-      const deleted = await storage.deleteNote(req.params.id);
+      const deleted = await optimizedStorage.deleteNote(req.params.id);
       if (!deleted) {
         return res.status(404).json({ message: "Note not found" });
       }
@@ -791,7 +871,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/classes", async (req, res) => {
     try {
       const userId = getUserId(req);
-      const classes = await storage.getClassesByUserId(userId);
+      const classes = await optimizedStorage.getClassesByUserId(userId);
       res.json(classes);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch classes" });
@@ -802,7 +882,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/assignments", async (req, res) => {
     try {
       const userId = getUserId(req);
-      console.log(' Assignment creation request body:', JSON.stringify(req.body, null, 2));
+      debugLog(' Assignment creation request body:', JSON.stringify(req.body, null, 2));
       
       // Convert dueDate string to Date object if present
       const bodyWithParsedDate = {
@@ -812,11 +892,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       const assignmentData = insertAssignmentSchema.parse(bodyWithParsedDate);
-      const assignment = await storage.createAssignment(assignmentData);
+      const assignment = await optimizedStorage.createAssignment(assignmentData);
       res.status(201).json(assignment);
     } catch (error) {
       if (error instanceof z.ZodError) {
-        console.log(' Assignment validation error:', JSON.stringify(error.errors, null, 2));
+        debugLog(' Assignment validation error:', JSON.stringify(error.errors, null, 2));
         return res.status(400).json({ message: "Invalid assignment data", errors: error.errors });
       }
       console.error(' Assignment creation error:', error);
@@ -829,7 +909,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = getUserId(req);
       const classData = insertClassSchema.parse({ ...req.body, userId });
-      const newClass = await storage.createClass(classData);
+      const newClass = await optimizedStorage.createClass(classData);
       res.status(201).json(newClass);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -842,10 +922,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // YouTube transcript route
   app.post("/api/youtube/transcript", async (req, res) => {
     try {
-      console.log('📺 YouTube transcript request received');
+      debugLog('📺 YouTube transcript request received');
       const userId = req.header('x-user-id');
       if (!userId) {
-        console.log('❌ No user ID provided');
+        debugLog('❌ No user ID provided');
         return res.status(401).json({ message: 'User authentication required' });
       }
 
@@ -856,7 +936,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const parsed = schema.safeParse(req.body);
       if (!parsed.success) {
-        console.log('❌ Validation failed:', parsed.error.errors);
+        debugLog('❌ Validation failed:', parsed.error.errors);
         return res.status(400).json({ 
           message: 'Invalid input',
           errors: parsed.error.errors 
@@ -864,7 +944,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { videoId } = parsed.data;
-      console.log(`🎬 Fetching transcript for video: ${videoId}`);
+      debugLog(`🎬 Fetching transcript for video: ${videoId}`);
 
       // Dynamically import youtube-transcript
       const { YoutubeTranscript } = await import('youtube-transcript');
@@ -873,13 +953,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const fullText = segments.map((s: any) => s.text.trim()).join(' ').replace(/\s+/g, ' ').trim();
 
       if (!fullText) {
-        console.log('❌ Empty transcript received');
+        debugLog('❌ Empty transcript received');
         return res.status(404).json({ 
           message: 'No transcript found for this video. Video may not have captions enabled.' 
         });
       }
 
-      console.log(`✅ Transcript fetched successfully: ${fullText.length} characters`);
+      debugLog(`✅ Transcript fetched successfully: ${fullText.length} characters`);
       res.json({ 
         videoId,
         transcript: fullText,
@@ -910,7 +990,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Analytics routes
   app.get("/api/users/:userId/analytics", async (req, res) => {
     try {
-      const analytics = await storage.getUserAnalytics(req.params.userId);
+      const analytics = await optimizedStorage.getUserAnalytics(req.params.userId);
       res.json(analytics);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch analytics" });
@@ -924,7 +1004,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { refreshToken: clientRefreshToken } = req.body; // Accept refresh token from client as fallback
       
       // Get user's refresh token from storage
-      const user = await storage.getUser(userId);
+      const user = await optimizedStorage.getUser(userId);
       const refreshToken = user?.googleRefreshToken || clientRefreshToken;
       
       if (!refreshToken) {
@@ -964,13 +1044,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const expiresAt = new Date(Date.now() + expiresIn * 1000);
 
       // Update user's access token in storage
-      await storage.updateUser(userId, {
+      await optimizedStorage.updateUser(userId, {
         googleAccessToken: newAccessToken,
         // Also store the refresh token if it was provided from client but not in DB
         ...(clientRefreshToken && !user?.googleRefreshToken ? { googleRefreshToken: clientRefreshToken } : {}),
       });
 
-      console.log(` Token refreshed for user ${userId}, expires at ${expiresAt}`);
+      debugLog(` Token refreshed for user ${userId}, expires at ${expiresAt}`);
 
       res.json({
         success: true,
@@ -1112,7 +1192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = getUserId(req);
       const boardData = insertBoardSchema.parse({ ...req.body, userId });
       const newBoard = await optimizedStorage.createBoard(boardData);
-      console.log(`📋 Board created: ${newBoard.id}, now creating default lists...`);
+      debugLog(`📋 Board created: ${newBoard.id}, now creating default lists...`);
 
       try {
         await createDefaultListsForBoard(newBoard.id);
@@ -1208,6 +1288,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Card endpoints
+  
+  // Get all cards for user, optionally filtered by boardId
+  app.get("/api/cards", async (req, res) => {
+    try {
+      const userId = getUserId(req);
+      const { boardId } = req.query;
+      
+      if (boardId && typeof boardId === 'string') {
+        // Get all lists for the board, then get cards for those lists
+        const lists = await optimizedStorage.getListsByBoardId(boardId);
+        const cardPromises = lists.map((list: any) => optimizedStorage.getCardsByListId(list.id));
+        const cardArrays = await Promise.all(cardPromises);
+        const cards = cardArrays.flat();
+        res.json(cards);
+      } else {
+        // Get all cards for user
+        const cards = await optimizedStorage.getCardsByUserId(userId);
+        res.json(cards);
+      }
+    } catch (error: any) {
+      console.error('Error fetching cards:', error);
+      res.status(500).json({ message: error.message || "Failed to fetch cards" });
+    }
+  });
+
   app.get("/api/cards/inbox", async (req, res) => {
     try {
       const userId = getUserId(req);
@@ -1259,7 +1364,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/cards/:id", async (req, res) => {
     try {
-      const updated = await optimizedStorage.updateCard(req.params.id, req.body);
+      console.log(' PATCH /api/cards/:id - req.body:', JSON.stringify(req.body));
+      
+      // Convert dueDate string to Date object if present
+      const updates = { ...req.body };
+      if (updates.dueDate !== undefined) {
+        console.log(' dueDate before processing:', updates.dueDate, 'type:', typeof updates.dueDate);
+        if (updates.dueDate === null) {
+          // Keep null as null (clearing the due date)
+          updates.dueDate = null;
+        } else {
+          // Convert string to Date object
+          const parsedDate = new Date(updates.dueDate);
+          console.log(' parsedDate:', parsedDate, 'isValid:', !isNaN(parsedDate.getTime()));
+          if (isNaN(parsedDate.getTime())) {
+            return res.status(400).json({ message: "Invalid due date format" });
+          }
+          updates.dueDate = parsedDate;
+        }
+      }
+      
+      const updated = await optimizedStorage.updateCard(req.params.id, updates);
       if (!updated) {
         return res.status(404).json({ message: "Card not found" });
       }

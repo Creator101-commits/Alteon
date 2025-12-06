@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import NoteEditor from "@/components/NoteEditor";
+import { NoteCard } from "@/components/memoized";
 import { 
   StickyNote,
   Plus, 
@@ -205,14 +206,27 @@ export default function NotesPage() {
     setEditingNote(null);
   };
 
-  const stripHtmlTags = (html: string) => {
+  const stripHtmlTags = useCallback((html: string) => {
     return html.replace(/<[^>]+>/g, "");
-  };
+  }, []);
 
-  const getClassName = (classId: string | null) => {
+  const getClassName = useCallback((classId: string | null) => {
     if (!classId) return null;
     return classes.find(c => c.id === classId)?.name;
-  };
+  }, [classes]);
+
+  // Memoized callbacks for NoteCard
+  const handleOpenNote = useCallback((note: Note) => {
+    openEditor(note);
+  }, []);
+
+  const handleDeleteNoteClick = useCallback((id: string | number) => {
+    handleDeleteNote(id as string);
+  }, []);
+
+  const handleTogglePinNote = useCallback((note: Note) => {
+    handleTogglePin(note);
+  }, []);
 
   const filteredNotes = useMemo(
     () =>
@@ -240,135 +254,6 @@ export default function NotesPage() {
       />
     );
   }
-
-  const NoteCard = ({ note }: { note: Note }) => (
-    <Card 
-      className="group border border-border/40 transition-all duration-300 hover:shadow-xl hover:shadow-primary/10 hover:border-primary/40 cursor-pointer relative bg-gradient-to-br from-card/60 to-card/40 backdrop-blur-sm hover:from-card/80 hover:to-card/60 hover:scale-[1.02] overflow-hidden"
-      onClick={() => openEditor(note)}
-    >
-      {/* Header with better spacing and visual hierarchy */}
-      <CardHeader className="pb-3 px-6 pt-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 min-w-0 space-y-3">
-            {/* Title with pin indicator */}
-            <div className="flex items-start gap-2">
-              {note.isPinned && (
-                <div className="flex-shrink-0 mt-1">
-                  <Pin className="h-4 w-4 text-amber-500 fill-amber-500" />
-                </div>
-              )}
-              <h3 className="font-bold text-foreground text-xl leading-tight line-clamp-2 group-hover:text-primary transition-colors duration-200">
-                {note.title || "Untitled Note"}
-              </h3>
-            </div>
-            
-            {/* Category and class badges with better styling */}
-            <div className="flex items-center flex-wrap gap-2">
-              {note.category && (
-                <Badge 
-                  variant="secondary" 
-                  className="text-xs font-semibold px-3 py-1.5 bg-gradient-to-r from-primary/15 to-primary/10 text-primary border border-primary/20 rounded-full shadow-sm"
-                >
-                  {note.category}
-                </Badge>
-              )}
-              {getClassName(note.classId) && (
-                <Badge 
-                  variant="outline" 
-                  className="text-xs font-medium px-3 py-1.5 border-border/60 bg-muted/30 text-muted-foreground rounded-full hover:bg-muted/50 transition-colors"
-                >
-                  <BookOpen className="h-3 w-3 mr-1.5 flex-shrink-0" />
-                  {getClassName(note.classId)}
-                </Badge>
-              )}
-            </div>
-          </div>         
-          
-          {/* Action menu with better visibility */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="opacity-0 group-hover:opacity-100 transition-all duration-200 hover:bg-accent/60 text-muted-foreground hover:text-foreground h-9 w-9 p-0 rounded-full"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent className="bg-popover/95 backdrop-blur-sm border-border/50 shadow-xl" align="end">
-              <DropdownMenuItem 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openEditor(note);
-                }}
-                className="hover:bg-accent/50 focus:bg-accent/50 cursor-pointer"
-              >
-                <Edit3 className="h-4 w-4 mr-3" />
-                Edit Note
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleTogglePin(note);
-                }}
-                className="hover:bg-accent/50 focus:bg-accent/50 cursor-pointer"
-              >
-                <Pin className="h-4 w-4 mr-3" />
-                {note.isPinned ? "Unpin Note" : "Pin Note"}
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleDeleteNote(note.id);
-                }}
-                className="text-destructive hover:bg-destructive/10 focus:bg-destructive/10 cursor-pointer"
-              >
-                <Trash2 className="h-4 w-4 mr-3" />
-                Delete Note
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </CardHeader>
-      
-      {/* Content with better spacing and typography */}
-      <CardContent className="px-6 pb-6 pt-0">
-        <div className="space-y-4">
-          {/* Content preview with better styling */}
-          <p className="text-sm text-muted-foreground line-clamp-3 leading-relaxed font-medium">
-            {stripHtmlTags(note.content) || "No content available..."}
-          </p>
-          
-          {/* Metadata section with improved visual design */}
-          <div className="pt-4 border-t border-border/40">
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <div className="flex items-center gap-5">
-                <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-1 rounded-md">
-                  <Clock className="h-3.5 w-3.5" />
-                  <span className="font-medium">
-                    {new Date(note.updatedAt || note.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 bg-muted/30 px-2 py-1 rounded-md">
-                  <FileText className="h-3.5 w-3.5" />
-                  <span className="font-medium">
-                    {stripHtmlTags(note.content).split(' ').filter(word => word.length > 0).length} words
-                  </span>
-                </div>
-              </div>
-              <div className="font-semibold text-xs bg-primary/10 text-primary px-2 py-1 rounded-md">
-                {new Date(note.updatedAt || note.createdAt).toLocaleTimeString([], { 
-                  hour: '2-digit', 
-                  minute: '2-digit' 
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
 
   // Show loading state while authentication is being checked
   if (loading) {
@@ -543,7 +428,15 @@ export default function NotesPage() {
                         : "grid-cols-1 max-w-4xl"
                     }`}>
                       {pinnedNotes.map((note) => (
-                        <NoteCard key={note.id} note={note} />
+                        <NoteCard 
+                          key={note.id} 
+                          note={note}
+                          className={getClassName(note.classId) || undefined}
+                          onOpen={handleOpenNote}
+                          onTogglePin={handleTogglePinNote}
+                          onDelete={handleDeleteNoteClick}
+                          stripHtmlTags={stripHtmlTags}
+                        />
                       ))}
                     </div>
                   </div>
@@ -568,7 +461,15 @@ export default function NotesPage() {
                         : "grid-cols-1 max-w-4xl"
                     }`}>
                       {regularNotes.map((note) => (
-                        <NoteCard key={note.id} note={note} />
+                        <NoteCard 
+                          key={note.id} 
+                          note={note}
+                          className={getClassName(note.classId) || undefined}
+                          onOpen={handleOpenNote}
+                          onTogglePin={handleTogglePinNote}
+                          onDelete={handleDeleteNoteClick}
+                          stripHtmlTags={stripHtmlTags}
+                        />
                       ))}
                     </div>
                   </div>

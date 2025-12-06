@@ -184,7 +184,35 @@ export default function Aurora(props: AuroraProps) {
     ctn.appendChild(gl.canvas);
 
     let animateId = 0;
+    let isVisible = true;
+    let isDocumentVisible = !document.hidden;
+
+    // Pause animation when element is not visible (IntersectionObserver)
+    const observer = new IntersectionObserver(
+      (entries) => {
+        isVisible = entries[0].isIntersecting;
+      },
+      { threshold: 0 }
+    );
+    observer.observe(ctn);
+
+    // Pause animation when tab is hidden
+    const handleVisibilityChange = () => {
+      isDocumentVisible = !document.hidden;
+      if (isDocumentVisible && isVisible) {
+        // Resume animation
+        animateId = requestAnimationFrame(update);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     const update = (t: number) => {
+      // Skip rendering when not visible - saves CPU/battery
+      if (!isVisible || !isDocumentVisible) {
+        animateId = requestAnimationFrame(update);
+        return;
+      }
+
       animateId = requestAnimationFrame(update);
       const { time = t * 0.01, speed = 1.0 } = propsRef.current;
       if (program) {
@@ -205,6 +233,8 @@ export default function Aurora(props: AuroraProps) {
 
     return () => {
       cancelAnimationFrame(animateId);
+      observer.disconnect();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener("resize", resize);
       if (ctn && gl.canvas.parentNode === ctn) {
         ctn.removeChild(gl.canvas);

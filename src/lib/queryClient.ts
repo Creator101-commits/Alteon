@@ -47,9 +47,15 @@ export const queryClient = new QueryClient({
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: false,
-      // Optimized caching strategy
-      staleTime: 5 * 60 * 1000, // 5 minutes - data stays fresh
+      refetchOnReconnect: true,
+      // Request deduplication: identical queries within staleTime will reuse cached data
+      // This prevents duplicate API calls when components mount with the same query key
+      staleTime: 5 * 60 * 1000, // 5 minutes - data stays fresh, prevents refetch
       gcTime: 30 * 60 * 1000, // 30 minutes - cache garbage collection
+      // Structural sharing - only creates new references if data actually changed
+      structuralSharing: true,
+      // Network mode - controls when queries should fetch
+      networkMode: 'online',
       retry: (failureCount, error) => {
         // Retry on network errors, but not on 4xx errors
         if (error instanceof Error && error.message.includes('4')) {
@@ -62,6 +68,8 @@ export const queryClient = new QueryClient({
     mutations: {
       retry: 1,
       retryDelay: 1000,
+      // Network mode for mutations
+      networkMode: 'online',
     },
   },
 });

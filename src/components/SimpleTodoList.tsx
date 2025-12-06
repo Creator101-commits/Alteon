@@ -251,8 +251,12 @@ export function SimpleTodoList() {
         {/* Todo List */}
         <div className="space-y-2 max-h-[280px] overflow-y-auto">
           {isLoading ? (
-            <div className="py-6 flex justify-center">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            <div className="py-8 flex flex-col items-center justify-center space-y-3">
+              <div className="relative">
+                <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
+                <Loader2 className="h-6 w-6 text-primary animate-spin relative z-10" />
+              </div>
+              <p className="text-xs text-muted-foreground animate-pulse">Loading tasks...</p>
             </div>
           ) : todos.length === 0 ? (
             <div className="py-6 text-center text-sm text-muted-foreground">

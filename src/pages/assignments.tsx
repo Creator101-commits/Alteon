@@ -74,7 +74,9 @@ export default function Assignments() {
         },
       });
 
-      if (!response.ok) {
+      // Handle both success (204) and "not found" (404) as success
+      // 404 means assignment was already deleted or doesn't exist in DB
+      if (!response.ok && response.status !== 404) {
         const errorData = await response.json();
         console.error('API Error:', errorData);
         throw new Error(errorData.message || 'Failed to complete assignment');
@@ -82,11 +84,25 @@ export default function Assignments() {
 
       // Update localStorage cache - remove the assignment
       const storageKey = `custom_assignments_${user.uid}`;
-      const assignments = JSON.parse(localStorage.getItem(storageKey) || '[]');
-      const updatedAssignments = assignments.filter((assignment: any) => 
+      const cachedAssignments = JSON.parse(localStorage.getItem(storageKey) || '[]');
+      const updatedAssignments = cachedAssignments.filter((assignment: any) => 
         assignment.id !== assignmentId
       );
       localStorage.setItem(storageKey, JSON.stringify(updatedAssignments));
+
+      // Also update the classroom data cache
+      try {
+        const classroomCache = localStorage.getItem(`classroom_data_${user.uid}`);
+        if (classroomCache) {
+          const parsed = JSON.parse(classroomCache);
+          if (parsed.assignments) {
+            parsed.assignments = parsed.assignments.filter((a: any) => a.id !== assignmentId);
+            localStorage.setItem(`classroom_data_${user.uid}`, JSON.stringify(parsed));
+          }
+        }
+      } catch (cacheError) {
+        console.warn('Failed to update classroom cache:', cacheError);
+      }
       
       toast({
         title: "Assignment Completed! 🎉",
@@ -117,7 +133,8 @@ export default function Assignments() {
         },
       });
 
-      if (!response.ok) {
+      // Handle both success (204) and "not found" (404) as success
+      if (!response.ok && response.status !== 404) {
         throw new Error('Failed to delete assignment');
       }
 
@@ -126,6 +143,20 @@ export default function Assignments() {
       const assignments = JSON.parse(localStorage.getItem(storageKey) || '[]');
       const updatedAssignments = assignments.filter((assignment: any) => assignment.id !== assignmentId);
       localStorage.setItem(storageKey, JSON.stringify(updatedAssignments));
+
+      // Also update the classroom data cache
+      try {
+        const classroomCache = localStorage.getItem(`classroom_data_${user.uid}`);
+        if (classroomCache) {
+          const parsed = JSON.parse(classroomCache);
+          if (parsed.assignments) {
+            parsed.assignments = parsed.assignments.filter((a: any) => a.id !== assignmentId);
+            localStorage.setItem(`classroom_data_${user.uid}`, JSON.stringify(parsed));
+          }
+        }
+      } catch (cacheError) {
+        console.warn('Failed to update classroom cache:', cacheError);
+      }
       
       toast({
         title: "Assignment Deleted",

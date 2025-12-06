@@ -51,6 +51,7 @@ import {
   Brain,
   Globe,
   Telescope,
+  X,
 } from "lucide-react";
 import { groqAPI, ChatMessage as GroqChatMessage } from "@/lib/groq";
 import { useToast } from "@/hooks/use-toast";
@@ -112,7 +113,7 @@ export default function AiChat() {
   const [notes, setNotes] = useState<any[]>([]);
   const [selectedNote, setSelectedNote] = useState<any | null>(null);
   const [showNoteSelector, setShowNoteSelector] = useState(false);
-  const [uploadedDocument, setUploadedDocument] = useState<UploadedDocument | null>(null);
+  const [uploadedDocuments, setUploadedDocuments] = useState<UploadedDocument[]>([]);
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
   const [processingStatus, setProcessingStatus] = useState<string | null>(null); // Track file processing status
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -262,14 +263,18 @@ export default function AiChat() {
       // Build system context with document information if available
       let systemContext = `You are a helpful AI assistant designed to help students with their academic work. Provide clear, educational, and constructive responses using rich Markdown formatting.`;
       
-      if (uploadedDocument && uploadedDocument.status === "ready") {
-        systemContext += `\n\n**IMPORTANT CONTEXT:** The user has uploaded a document: "${uploadedDocument.fileName}" (${uploadedDocument.kind.toUpperCase()}).`;
+      const readyDocuments = uploadedDocuments.filter(doc => doc.status === "ready");
+      if (readyDocuments.length > 0) {
+        systemContext += `\n\n**IMPORTANT CONTEXT:** The user has uploaded ${readyDocuments.length} document(s):`;
         
-        if (uploadedDocument.extractedContent) {
-          systemContext += `\n\n**DOCUMENT CONTENT:**\n${uploadedDocument.extractedContent}\n\n**INSTRUCTIONS:** When answering questions, reference the above document content directly. Provide specific information from the document, quote relevant sections when helpful, and help the user understand the content thoroughly.`;
-        } else {
-          systemContext += `\n\nWhen answering questions, reference this document and help the user understand its content.`;
-        }
+        readyDocuments.forEach((doc, index) => {
+          systemContext += `\n\n--- Document ${index + 1}: "${doc.fileName}" (${doc.kind.toUpperCase()}) ---`;
+          if (doc.extractedContent) {
+            systemContext += `\n${doc.extractedContent}`;
+          }
+        });
+        
+        systemContext += `\n\n**INSTRUCTIONS:** When answering questions, reference the above document content directly. Provide specific information from the documents, quote relevant sections when helpful, and help the user understand the content thoroughly.`;
       }
 
       // Convert our chat messages to Groq format
@@ -632,78 +637,88 @@ ${msg}
   };
 
   const handleDocumentUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
 
-    // Check file type
+    // Check file types
     const allowedTypes = [
       "application/pdf",
       "application/vnd.openxmlformats-officedocument.presentationml.presentation",
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     ];
     
-    if (!allowedTypes.includes(file.type)) {
+    const validFiles = Array.from(files).filter(file => allowedTypes.includes(file.type));
+    
+    if (validFiles.length === 0) {
       toast({
         title: "Error",
-        description: "Please upload a PDF, PPTX, or XLSX file",
+        description: "Please upload PDF, PPTX, or XLSX files",
         variant: "destructive",
       });
       return;
     }
 
+    if (validFiles.length < files.length) {
+      toast({
+        title: "Warning",
+        description: `${files.length - validFiles.length} file(s) skipped - only PDF, PPTX, XLSX allowed`,
+      });
+    }
+
     setIsUploadingDoc(true);
 
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
+    // Process each file
+    for (const file of validFiles) {
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
 
-      const response = await fetch("/api/document-intel/sessions", {
-        method: "POST",
-        headers: {
-          "x-user-id": user?.uid || "anonymous",
-        },
-        body: formData,
-      });
+        const response = await fetch("/api/document-intel/sessions", {
+          method: "POST",
+          headers: {
+            "x-user-id": user?.uid || "anonymous",
+          },
+          body: formData,
+        });
 
-      if (!response.ok) {
-        throw new Error("Failed to upload document");
+        if (!response.ok) {
+          throw new Error(`Failed to upload ${file.name}`);
+        }
+
+        const data = await response.json();
+        
+        const doc: UploadedDocument = {
+          jobId: data.jobId,
+          fileName: file.name,
+          kind: file.type.includes("pdf") ? "pdf" : file.type.includes("presentation") ? "pptx" : "xlsx",
+          phase: data.phase,
+          status: "processing",
+        };
+
+        // Add to documents array
+        setUploadedDocuments(prev => [...prev, doc]);
+
+        // Poll for document processing status
+        pollDocumentStatus(data.jobId);
+
+      } catch (error) {
+        console.error(`Document upload error for ${file.name}:`, error);
+        toast({
+          title: "Upload Failed",
+          description: `Failed to upload ${file.name}`,
+          variant: "destructive",
+        });
       }
+    }
 
-      const data = await response.json();
-      
-      const doc: UploadedDocument = {
-        jobId: data.jobId,
-        fileName: file.name,
-        kind: file.type.includes("pdf") ? "pdf" : file.type.includes("presentation") ? "pptx" : "xlsx",
-        phase: data.phase,
-        status: "processing",
-      };
+    toast({
+      title: validFiles.length > 1 ? "Documents Uploaded" : "Document Uploaded",
+      description: `Processing ${validFiles.length} file(s)...`,
+    });
 
-      setUploadedDocument(doc);
-
-      // Poll for document processing status
-      pollDocumentStatus(data.jobId);
-
-      toast({
-        title: "Document Uploaded",
-        description: "Processing your document...",
-      });
-    } catch (error) {
-      console.error("Document upload error:", error);
-      addMessage(
-        "assistant",
-        "Sorry, I encountered an error while uploading the document. Please try again."
-      );
-      toast({
-        title: "Upload Failed",
-        description: error instanceof Error ? error.message : "Failed to upload document",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUploadingDoc(false);
-      if (documentInputRef.current) {
-        documentInputRef.current.value = "";
-      }
+    setIsUploadingDoc(false);
+    if (documentInputRef.current) {
+      documentInputRef.current.value = "";
     }
   };
 
@@ -721,17 +736,16 @@ ${msg}
           const data = await response.json();
           clearInterval(pollInterval);
           
-          setUploadedDocument(prev => {
-            if (prev && prev.jobId === jobId) {
-              return { 
-                ...prev, 
-                status: "ready", 
-                phase: "completed",
-                extractedContent: data.content 
-              };
-            }
-            return prev;
-          });
+          setUploadedDocuments(prev => prev.map(doc => 
+            doc.jobId === jobId 
+              ? { 
+                  ...doc, 
+                  status: "ready" as const, 
+                  phase: "completed",
+                  extractedContent: data.content 
+                }
+              : doc
+          ));
         } else if (response.status === 404) {
           // Document not ready yet, keep polling
           console.log("Document still processing...");
@@ -739,12 +753,19 @@ ${msg}
           // Error occurred
           console.error("Error fetching document:", response.statusText);
           clearInterval(pollInterval);
-          setUploadedDocument(prev => prev ? { ...prev, status: "error" } : prev);
+          setUploadedDocuments(prev => prev.map(doc => 
+            doc.jobId === jobId ? { ...doc, status: "error" as const } : doc
+          ));
         }
       } catch (error) {
         console.error("Error polling document status:", error);
       }
     }, 2000);
+  };
+
+  // Remove a document from the uploaded list
+  const removeDocument = (jobId: string) => {
+    setUploadedDocuments(prev => prev.filter(doc => doc.jobId !== jobId));
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -992,11 +1013,12 @@ ${msg}
 
         {activeTab === "chat" && (
           <div className="h-full flex flex-col relative">
-            {/* Hidden file input - always available */}
+            {/* Hidden file input - always available, supports multiple files */}
             <input
               ref={documentInputRef}
               type="file"
               accept=".pdf,.pptx,.xlsx"
+              multiple
               onChange={handleDocumentUpload}
               style={{ position: 'absolute', top: 0, left: 0, opacity: 0, pointerEvents: 'none' }}
             />
@@ -1047,13 +1069,13 @@ ${msg}
                     </div>
 
                     <div className="flex items-center justify-between p-3 border-t border-border">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
                         <button
                           type="button"
                           onClick={() => documentInputRef.current?.click()}
                           disabled={isUploadingDoc}
-                          className="group p-2 hover:bg-muted rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50"
-                          title="Upload PDF, PPTX, or XLSX"
+                          className="group p-2 hover:bg-muted rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50 shrink-0"
+                          title="Upload PDF, PPTX, or XLSX (multiple files supported)"
                         >
                           {isUploadingDoc ? (
                             <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
@@ -1061,42 +1083,52 @@ ${msg}
                             <Upload className="w-4 h-4 text-muted-foreground" />
                           )}
                           <span className="text-xs text-muted-foreground hidden group-hover:inline transition-opacity">
-                            {isUploadingDoc ? "Uploading..." : "Attach Document"}
+                            {isUploadingDoc ? "Uploading..." : "Attach Files"}
                           </span>
                         </button>
-                        {uploadedDocument && (
-                          <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-colors ${
-                            uploadedDocument.status === "ready" 
-                              ? "bg-green-500/10 border-green-500/20" 
-                              : uploadedDocument.status === "error"
-                              ? "bg-destructive/10 border-destructive/20"
-                              : "bg-primary/10 border-primary/20"
-                          }`}>
-                            {uploadedDocument.status === "processing" || uploadedDocument.status === "uploading" ? (
-                              <Loader2 className="w-3 h-3 text-primary animate-spin" />
-                            ) : uploadedDocument.status === "ready" ? (
-                              <FileCheck className="w-3 h-3 text-green-500" />
-                            ) : (
-                              <FileText className="w-3 h-3 text-destructive" />
-                            )}
-                            <span className={`text-xs truncate max-w-[100px] ${
-                              uploadedDocument.status === "ready" 
-                                ? "text-green-600 dark:text-green-400" 
-                                : uploadedDocument.status === "error"
-                                ? "text-destructive"
-                                : "text-primary"
-                            }`}>
-                              {uploadedDocument.fileName}
-                            </span>
-                            {(uploadedDocument.status === "processing" || uploadedDocument.status === "uploading") && (
-                              <span className="text-xs text-muted-foreground">
-                                {uploadedDocument.status === "uploading" ? "Uploading..." : "Processing..."}
-                              </span>
-                            )}
+                        {uploadedDocuments.length > 0 && (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {uploadedDocuments.map((doc) => (
+                              <div 
+                                key={doc.jobId}
+                                className={`flex items-center gap-1 px-2 py-1 rounded-lg border transition-colors ${
+                                  doc.status === "ready" 
+                                    ? "bg-green-500/10 border-green-500/20" 
+                                    : doc.status === "error"
+                                    ? "bg-destructive/10 border-destructive/20"
+                                    : "bg-primary/10 border-primary/20"
+                                }`}
+                              >
+                                {doc.status === "processing" || doc.status === "uploading" ? (
+                                  <Loader2 className="w-3 h-3 text-primary animate-spin" />
+                                ) : doc.status === "ready" ? (
+                                  <FileCheck className="w-3 h-3 text-green-500" />
+                                ) : (
+                                  <FileText className="w-3 h-3 text-destructive" />
+                                )}
+                                <span className={`text-xs truncate max-w-[80px] ${
+                                  doc.status === "ready" 
+                                    ? "text-green-600 dark:text-green-400" 
+                                    : doc.status === "error"
+                                    ? "text-destructive"
+                                    : "text-primary"
+                                }`}>
+                                  {doc.fileName}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeDocument(doc.jobId)}
+                                  className="ml-0.5 p-0.5 hover:bg-muted rounded transition-colors"
+                                  title="Remove file"
+                                >
+                                  <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
+                                </button>
+                              </div>
+                            ))}
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 shrink-0">
                         <button
                           type="button"
                           onClick={handleChatMessage}
@@ -1251,7 +1283,7 @@ ${msg}
                       </div>
 
                       <div className="flex items-center justify-between p-3 border-t border-border">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1265,8 +1297,8 @@ ${msg}
                               }
                             }}
                             disabled={isUploadingDoc}
-                            className="group p-2 hover:bg-muted rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50 cursor-pointer"
-                            title="Upload PDF, PPTX, or XLSX"
+                            className="group p-2 hover:bg-muted rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50 cursor-pointer shrink-0"
+                            title="Upload PDF, PPTX, or XLSX (multiple files supported)"
                           >
                             {isUploadingDoc ? (
                               <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
@@ -1274,42 +1306,52 @@ ${msg}
                               <Upload className="w-4 h-4 text-muted-foreground" />
                             )}
                             <span className="text-xs text-muted-foreground hidden group-hover:inline transition-opacity">
-                              {isUploadingDoc ? "Uploading..." : "Attach Document"}
+                              {isUploadingDoc ? "Uploading..." : "Attach Files"}
                             </span>
                           </button>
-                          {uploadedDocument && (
-                            <div className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border transition-colors ${
-                              uploadedDocument.status === "ready" 
-                                ? "bg-green-500/10 border-green-500/20" 
-                                : uploadedDocument.status === "error"
-                                ? "bg-destructive/10 border-destructive/20"
-                                : "bg-primary/10 border-primary/20"
-                            }`}>
-                              {uploadedDocument.status === "processing" || uploadedDocument.status === "uploading" ? (
-                                <Loader2 className="w-3 h-3 text-primary animate-spin" />
-                              ) : uploadedDocument.status === "ready" ? (
-                                <FileCheck className="w-3 h-3 text-green-500" />
-                              ) : (
-                                <FileText className="w-3 h-3 text-destructive" />
-                              )}
-                              <span className={`text-xs truncate max-w-[100px] ${
-                                uploadedDocument.status === "ready" 
-                                  ? "text-green-600 dark:text-green-400" 
-                                  : uploadedDocument.status === "error"
-                                  ? "text-destructive"
-                                  : "text-primary"
-                              }`}>
-                                {uploadedDocument.fileName}
-                              </span>
-                              {(uploadedDocument.status === "processing" || uploadedDocument.status === "uploading") && (
-                                <span className="text-xs text-muted-foreground">
-                                  {uploadedDocument.status === "uploading" ? "Uploading..." : "Processing..."}
-                                </span>
-                              )}
+                          {uploadedDocuments.length > 0 && (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {uploadedDocuments.map((doc) => (
+                                <div 
+                                  key={doc.jobId}
+                                  className={`flex items-center gap-1 px-2 py-1 rounded-lg border transition-colors ${
+                                    doc.status === "ready" 
+                                      ? "bg-green-500/10 border-green-500/20" 
+                                      : doc.status === "error"
+                                      ? "bg-destructive/10 border-destructive/20"
+                                      : "bg-primary/10 border-primary/20"
+                                  }`}
+                                >
+                                  {doc.status === "processing" || doc.status === "uploading" ? (
+                                    <Loader2 className="w-3 h-3 text-primary animate-spin" />
+                                  ) : doc.status === "ready" ? (
+                                    <FileCheck className="w-3 h-3 text-green-500" />
+                                  ) : (
+                                    <FileText className="w-3 h-3 text-destructive" />
+                                  )}
+                                  <span className={`text-xs truncate max-w-[80px] ${
+                                    doc.status === "ready" 
+                                      ? "text-green-600 dark:text-green-400" 
+                                      : doc.status === "error"
+                                      ? "text-destructive"
+                                      : "text-primary"
+                                  }`}>
+                                    {doc.fileName}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeDocument(doc.jobId)}
+                                    className="ml-0.5 p-0.5 hover:bg-muted rounded transition-colors"
+                                    title="Remove file"
+                                  >
+                                    <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
+                                  </button>
+                                </div>
+                              ))}
                             </div>
                           )}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 shrink-0">
                           <button
                             type="button"
                             onClick={isLoading ? stopResponse : handleChatMessage}

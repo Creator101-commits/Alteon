@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useDragAndDrop } from "@/hooks/useDragAndDrop";
 import { useDashboardAnalytics } from "@/hooks/useDashboardData";
 import { useLocation } from "wouter";
@@ -27,7 +28,114 @@ import {
   CheckCircle2,
   AlertCircle,
   BookOpen,
+  Loader2,
 } from "lucide-react";
+
+// Widget Loading Spinner Component - centered spinner with pulsing background
+const WidgetLoadingSpinner: React.FC<{ message?: string }> = ({ message = "Loading..." }) => {
+  return (
+    <div className="flex flex-col items-center justify-center py-8 space-y-3">
+      <div className="relative">
+        <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" />
+        <Loader2 className="h-8 w-8 text-primary animate-spin relative z-10" />
+      </div>
+      <p className="text-xs text-muted-foreground animate-pulse">{message}</p>
+    </div>
+  );
+};
+
+// Widget Loading Skeleton Component
+const WidgetSkeleton: React.FC<{ type?: 'stats' | 'list' | 'progress' | 'grid' }> = ({ type = 'stats' }) => {
+  if (type === 'stats') {
+    return (
+      <div className="space-y-4">
+        <div className="text-center space-y-2">
+          <Skeleton className="h-8 w-16 mx-auto" />
+          <Skeleton className="h-3 w-20 mx-auto" />
+        </div>
+        <div className="space-y-2">
+          <div className="flex justify-between items-center">
+            <Skeleton className="h-3 w-20" />
+            <Skeleton className="h-3 w-8" />
+          </div>
+          <div className="flex justify-between items-center">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-3 w-8" />
+          </div>
+        </div>
+        <Skeleton className="h-2 w-full rounded-full" />
+      </div>
+    );
+  }
+
+  if (type === 'list') {
+    return (
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-6 w-16 rounded" />
+        </div>
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-muted/30">
+            <Skeleton className="h-4 w-4 rounded-full mt-0.5 shrink-0" />
+            <div className="flex-1 space-y-1.5">
+              <Skeleton className="h-3.5 w-3/4" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (type === 'progress') {
+    return (
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-6 w-14 rounded" />
+        </div>
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="space-y-1.5">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-1.5">
+                <Skeleton className="h-3 w-3" />
+                <Skeleton className="h-3 w-20" />
+              </div>
+              <Skeleton className="h-3 w-12" />
+            </div>
+            <Skeleton className="h-2 w-full rounded-full" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (type === 'grid') {
+    return (
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-6 w-20 rounded" />
+        </div>
+        <div className="text-center space-y-1">
+          <Skeleton className="h-7 w-12 mx-auto" />
+          <Skeleton className="h-3 w-24 mx-auto" />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="p-2 rounded-lg bg-muted/30 text-center space-y-1">
+              <Skeleton className="h-4 w-8 mx-auto" />
+              <Skeleton className="h-3 w-12 mx-auto" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+};
 
 interface DashboardWidget {
   id: string;
@@ -115,10 +223,7 @@ export const CalendarWidget: React.FC<{ widget: DashboardWidget }> = ({ widget }
   if (isLoading) {
     return (
       <DraggableWidget widget={widget} onRemove={() => {}} onResize={() => {}}>
-        <div className="animate-pulse space-y-2">
-          <div className="h-4 bg-muted rounded w-3/4"></div>
-          <div className="h-4 bg-muted rounded w-1/2"></div>
-        </div>
+        <WidgetLoadingSpinner message="Loading calendar..." />
       </DraggableWidget>
     );
   }
@@ -180,10 +285,7 @@ export const AssignmentsWidget: React.FC<{ widget: DashboardWidget }> = ({ widge
   if (isLoading) {
     return (
       <DraggableWidget widget={widget} onRemove={() => {}} onResize={() => {}}>
-        <div className="animate-pulse space-y-2">
-          <div className="h-4 bg-muted rounded w-3/4"></div>
-          <div className="h-4 bg-muted rounded w-1/2"></div>
-        </div>
+        <WidgetLoadingSpinner message="Loading assignments..." />
       </DraggableWidget>
     );
   }
@@ -230,10 +332,7 @@ export const HabitsWidget: React.FC<{ widget: DashboardWidget }> = ({ widget }) 
   if (isLoading) {
     return (
       <DraggableWidget widget={widget} onRemove={() => {}} onResize={() => {}}>
-        <div className="animate-pulse space-y-2">
-          <div className="h-4 bg-muted rounded w-3/4"></div>
-          <div className="h-4 bg-muted rounded w-1/2"></div>
-        </div>
+        <WidgetLoadingSpinner message="Loading habits..." />
       </DraggableWidget>
     );
   }
@@ -336,10 +435,7 @@ export const PomodoroWidget: React.FC<{ widget: DashboardWidget }> = ({ widget }
   if (isLoading) {
     return (
       <DraggableWidget widget={widget} onRemove={() => {}} onResize={() => {}}>
-        <div className="animate-pulse space-y-2">
-          <div className="h-4 bg-muted rounded w-3/4"></div>
-          <div className="h-4 bg-muted rounded w-1/2"></div>
-        </div>
+        <WidgetLoadingSpinner message="Loading sessions..." />
       </DraggableWidget>
     );
   }
@@ -376,15 +472,7 @@ export const AnalyticsWidget: React.FC<{ widget: DashboardWidget }> = ({ widget 
   if (isLoading) {
     return (
       <DraggableWidget widget={widget} onRemove={() => {}} onResize={() => {}}>
-        <div className="space-y-2">
-          <div className="animate-pulse space-y-2">
-            <div className="h-4 bg-muted rounded w-3/4"></div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="h-8 bg-muted rounded"></div>
-              <div className="h-8 bg-muted rounded"></div>
-            </div>
-          </div>
-        </div>
+        <WidgetLoadingSpinner message="Loading analytics..." />
       </DraggableWidget>
     );
   }
@@ -444,10 +532,7 @@ export const NotesWidget: React.FC<{ widget: DashboardWidget }> = ({ widget }) =
   if (isLoading) {
     return (
       <DraggableWidget widget={widget} onRemove={() => {}} onResize={() => {}}>
-        <div className="animate-pulse space-y-2">
-          <div className="h-4 bg-muted rounded w-3/4"></div>
-          <div className="h-4 bg-muted rounded w-1/2"></div>
-        </div>
+        <WidgetLoadingSpinner message="Loading notes..." />
       </DraggableWidget>
     );
   }
@@ -518,10 +603,7 @@ export const FlashcardsWidget: React.FC<{ widget: DashboardWidget }> = ({ widget
   if (isLoading) {
     return (
       <DraggableWidget widget={widget} onRemove={() => {}} onResize={() => {}}>
-        <div className="animate-pulse space-y-2">
-          <div className="h-4 bg-muted rounded w-3/4"></div>
-          <div className="h-4 bg-muted rounded w-1/2"></div>
-        </div>
+        <WidgetLoadingSpinner message="Loading flashcards..." />
       </DraggableWidget>
     );
   }

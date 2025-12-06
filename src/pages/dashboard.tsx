@@ -37,14 +37,15 @@ import {
   ChevronLeft,
   ChevronRight,
   Settings,
-  Grid3X3
+  Grid3X3,
+  Loader2
 } from 'lucide-react';
 
 // Clean dashboard - no mock data needed
 
 // Calendar Component
 function CalendarComponent() {
-  const { events } = useCalendar();
+  const { events, isLoading } = useCalendar();
   const [currentDate, setCurrentDate] = useState(new Date());
 
   // Get calendar events for the current month

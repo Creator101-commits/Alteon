@@ -954,6 +954,100 @@ export class OptimizedStorage {
     this.queryCache.invalidatePattern('quickTasks:');
     return result;
   }
+
+  // ===== PAGINATED METHODS =====
+  
+  // Paginated assignments
+  async getAssignmentsByUserIdPaginated(
+    userId: string,
+    options: { limit: number; offset: number; status?: string }
+  ): Promise<{ items: Assignment[]; total: number }> {
+    const cacheKey = `assignments:paginated:${userId}:${options.offset}:${options.limit}:${options.status || 'all'}`;
+    const cached = this.queryCache.get(cacheKey);
+    if (cached) return cached;
+
+    // Get all assignments for user (could be optimized with SQL LIMIT/OFFSET)
+    const allAssignments = await this.baseStorage.getAssignmentsByUserId(userId);
+    
+    // Filter by status if provided
+    let filtered = allAssignments;
+    if (options.status && options.status !== 'all') {
+      filtered = allAssignments.filter(a => a.status === options.status);
+    }
+    
+    const total = filtered.length;
+    const items = filtered.slice(options.offset, options.offset + options.limit);
+    
+    const result = { items, total };
+    this.queryCache.set(cacheKey, result, 2 * 60 * 1000); // 2 min cache
+    return result;
+  }
+
+  // Paginated notes
+  async getNotesByUserIdPaginated(
+    userId: string,
+    options: { limit: number; offset: number }
+  ): Promise<{ items: Note[]; total: number }> {
+    const cacheKey = `notes:paginated:${userId}:${options.offset}:${options.limit}`;
+    const cached = this.queryCache.get(cacheKey);
+    if (cached) return cached;
+
+    const allNotes = await this.baseStorage.getNotesByUserId(userId);
+    const total = allNotes.length;
+    const items = allNotes.slice(options.offset, options.offset + options.limit);
+    
+    const result = { items, total };
+    this.queryCache.set(cacheKey, result, 2 * 60 * 1000);
+    return result;
+  }
+
+  // Paginated flashcards
+  async getFlashcardsByUserIdPaginated(
+    userId: string,
+    options: { limit: number; offset: number; deckId?: string }
+  ): Promise<{ items: Flashcard[]; total: number }> {
+    const cacheKey = `flashcards:paginated:${userId}:${options.offset}:${options.limit}:${options.deckId || 'all'}`;
+    const cached = this.queryCache.get(cacheKey);
+    if (cached) return cached;
+
+    const allFlashcards = await this.baseStorage.getFlashcardsByUserId(userId);
+    
+    let filtered = allFlashcards;
+    if (options.deckId) {
+      filtered = allFlashcards.filter(f => f.deckId === options.deckId);
+    }
+    
+    const total = filtered.length;
+    const items = filtered.slice(options.offset, options.offset + options.limit);
+    
+    const result = { items, total };
+    this.queryCache.set(cacheKey, result, 2 * 60 * 1000);
+    return result;
+  }
+
+  // Paginated cards (for todo boards)
+  async getCardsByUserIdPaginated(
+    userId: string,
+    options: { limit: number; offset: number; listId?: string }
+  ): Promise<{ items: Card[]; total: number }> {
+    const cacheKey = `cards:paginated:${userId}:${options.offset}:${options.limit}:${options.listId || 'all'}`;
+    const cached = this.queryCache.get(cacheKey);
+    if (cached) return cached;
+
+    let allCards: Card[];
+    if (options.listId) {
+      allCards = await this.baseStorage.getCardsByListId(options.listId);
+    } else {
+      allCards = await this.baseStorage.getInboxCards(userId);
+    }
+    
+    const total = allCards.length;
+    const items = allCards.slice(options.offset, options.offset + options.limit);
+    
+    const result = { items, total };
+    this.queryCache.set(cacheKey, result, 2 * 60 * 1000);
+    return result;
+  }
 }
 
 // Export optimized storage instance

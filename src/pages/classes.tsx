@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { usePersistentData } from '@/hooks/usePersistentData';
 import { useClassManagement } from '@/hooks/useClassManagement';
+import { ClassCard } from '@/components/memoized';
 import { apiGet, apiPost } from '@/lib/api';
 import { ErrorHandler } from '@/lib/errorHandler';
 import { ClassSkeleton } from '@/components/LoadingSkeletons';
@@ -84,7 +85,7 @@ export default function Classes() {
     }
   };
 
-  const handleDeleteClass = async (course: any) => {
+  const handleDeleteClass = useCallback(async (course: any) => {
     try {
       const deleted = await confirmDeleteClass(course.id, course.name);
       if (deleted) {
@@ -98,7 +99,7 @@ export default function Classes() {
         { context: 'handleDeleteClass' }
       );
     }
-  };
+  }, [confirmDeleteClass, syncClassroomData]);
 
   // Remove the authentication check since users can now create custom classes
   // even without Google Classroom integration
@@ -252,72 +253,12 @@ export default function Classes() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {courses.map((course) => (
-          <Card key={course.id} className="hover:shadow-lg transition-shadow">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <CardTitle className="text-lg leading-tight">
-                  {course.name}
-                </CardTitle>
-                <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-                  {/* Delete button for classes */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteClass(course)}
-                    disabled={isDeleting === course.id}
-                    className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                  >
-                    {isDeleting === course.id ? (
-                      <div className="h-3 w-3 animate-spin rounded-full border-2 border-red-500 border-t-transparent" />
-                    ) : (
-                      <Trash2 className="h-3 w-3" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-              {course.section && (
-                <p className="text-sm text-muted-foreground">{course.section}</p>
-              )}
-            </CardHeader>
-            
-            <CardContent className="space-y-4">
-              {course.description && (
-                <p className="text-sm text-muted-foreground line-clamp-3">
-                  {course.description}
-                </p>
-              )}
-
-              <Separator />
-
-              <div className="space-y-3">
-                {course.teacherName && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                    <span>Teacher: {course.teacherName}</span>
-                  </div>
-                )}
-
-                {course.createdAt && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span>Created: {new Date(course.createdAt).toLocaleDateString()}</span>
-                  </div>
-                )}
-              </div>
-
-              {course.alternateLink && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="w-full mt-4"
-                  onClick={() => window.open(course.alternateLink, '_blank')}
-                >
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  Open in Classroom
-                </Button>
-              )}
-            </CardContent>
-          </Card>
+          <ClassCard
+            key={course.id}
+            course={course}
+            onDelete={handleDeleteClass}
+            isDeleting={isDeleting}
+          />
         ))}
       </div>
 

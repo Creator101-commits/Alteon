@@ -29,13 +29,31 @@ export default defineConfig({
     },
     rollupOptions: {
       output: {
-        // Code splitting for better caching
+        // Enhanced code splitting for better caching and smaller initial bundle
         manualChunks: {
-          vendor: ['react', 'react-dom'],
-          ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-toast'],
-          charts: ['recharts'],
-          editor: ['@tiptap/react', '@tiptap/starter-kit'],
-          utils: ['date-fns', 'clsx', 'tailwind-merge'],
+          // Core React - always needed
+          'vendor-react': ['react', 'react-dom'],
+          // UI components - loaded with main app
+          'vendor-ui': [
+            '@radix-ui/react-dialog', 
+            '@radix-ui/react-dropdown-menu', 
+            '@radix-ui/react-toast',
+            '@radix-ui/react-popover',
+            '@radix-ui/react-select',
+            '@radix-ui/react-tabs',
+          ],
+          // Charts - only loaded on analytics/dashboard pages
+          'vendor-charts': ['recharts'],
+          // Editor - only loaded on notes pages
+          'vendor-editor': ['@tiptap/react', '@tiptap/starter-kit', '@tiptap/extension-placeholder'],
+          // DnD Kit - only loaded on todos/boards pages
+          'vendor-dnd': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
+          // Utilities
+          'vendor-utils': ['date-fns', 'clsx', 'tailwind-merge', 'zod'],
+          // Firebase - auth and related
+          'vendor-firebase': ['firebase/app', 'firebase/auth'],
+          // Heavy visualization libraries - lazy loaded
+          'vendor-mermaid': ['mermaid'],
         },
         // Optimize chunk names for caching
         chunkFileNames: 'assets/[name]-[hash].js',
@@ -44,7 +62,7 @@ export default defineConfig({
       },
     },
     // Increase chunk size warning limit
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 500,
   },
   server: {
     fs: {

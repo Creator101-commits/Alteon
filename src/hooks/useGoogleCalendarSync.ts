@@ -96,11 +96,14 @@ export const useGoogleCalendarSync = () => {
   }, [user?.uid, transformEvents, transformCalendars]);
 
   // Fetch calendar data from backend API
-  const fetchCalendarData = useCallback(async (showToast: boolean = false, retryWithRefresh: boolean = true, overrideToken?: string) => {
+  const fetchCalendarData = useCallback(async (showToast: boolean = false, retryWithRefresh: boolean = true, overrideToken?: string, isAutoSync: boolean = false) => {
     const tokenToUse = overrideToken || userData?.googleAccessToken;
     
     if (!tokenToUse || !user?.uid) {
-      setError('No Google Calendar access');
+      // Don't set error for auto-sync - just silently skip
+      if (!isAutoSync) {
+        setError('No Google Calendar access');
+      }
       return false;
     }
 
@@ -118,17 +121,38 @@ export const useGoogleCalendarSync = () => {
 
       // If 401, try to refresh the token and retry once
       if (response.status === 401 && retryWithRefresh) {
-        console.log(' Token expired, attempting refresh...');
-        const refreshResult = await refreshGoogleToken(user.uid);
+        // Only log if not auto-sync to reduce console noise
+        if (!isAutoSync) {
+          console.log(' Token expired, attempting refresh...');
+        }
         
-        if (refreshResult?.accessToken) {
-          console.log(' Token refreshed, retrying calendar fetch with new token...');
-          // Retry with new token - but don't retry again to avoid infinite loop
-          setIsLoading(false);
-          return fetchCalendarData(showToast, false, refreshResult.accessToken);
-        } else {
+        try {
+          const refreshResult = await refreshGoogleToken(user.uid);
+          
+          if (refreshResult?.accessToken) {
+            if (!isAutoSync) {
+              console.log(' Token refreshed, retrying calendar fetch with new token...');
+            }
+            // Retry with new token - but don't retry again to avoid infinite loop
+            setIsLoading(false);
+            return fetchCalendarData(showToast, false, refreshResult.accessToken, isAutoSync);
+          }
+        } catch (refreshError) {
+          // Token refresh failed - this is expected if user doesn't have Google Calendar connected
+          // Just use cached data and don't show error for auto-sync
+          if (isAutoSync) {
+            setIsLoading(false);
+            return false;
+          }
           throw new Error('Failed to refresh Google token. Please sign in again.');
         }
+        
+        // No refresh result - fail silently for auto-sync
+        if (isAutoSync) {
+          setIsLoading(false);
+          return false;
+        }
+        throw new Error('Failed to refresh Google token. Please sign in again.');
       }
 
       if (!response.ok) {
@@ -158,7 +182,10 @@ export const useGoogleCalendarSync = () => {
       console.log(` Calendar synced: ${data.events.length} events`);
       return true;
     } catch (error) {
-      console.error('Failed to fetch calendar data:', error);
+      // Only log errors for manual syncs to reduce console noise
+      if (!isAutoSync) {
+        console.error('Failed to fetch calendar data:', error);
+      }
       setError((error as Error).message);
       
       if (showToast) {
@@ -176,7 +203,7 @@ export const useGoogleCalendarSync = () => {
 
   // Manual sync function
   const syncCalendarData = useCallback(async () => {
-    return fetchCalendarData(true);
+    return fetchCalendarData(true, true, undefined, false);
   }, [fetchCalendarData]);
 
   // Check if user has Google Calendar access and load data
@@ -194,7 +221,8 @@ export const useGoogleCalendarSync = () => {
         // If no cached data or cache is stale, fetch fresh data
         if (!hasCached || shouldRefreshCalendarData(user?.uid || '', 30)) {
           console.log(' Auto-syncing calendar data...');
-          fetchCalendarData(false);
+          // Pass isAutoSync = true to suppress error logging
+          fetchCalendarData(false, true, undefined, true);
         }
       }
     } else {
