@@ -247,6 +247,21 @@ export const quickTasks = pgTable("quick_tasks", {
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertClassSchema = createInsertSchema(classes).omit({ id: true, createdAt: true });
+
+// HAC (Home Access Center) schemas - not database tables, just validation schemas
+export const hacLoginSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
+  districtBaseUrl: z.string().url().optional(),
+});
+
+export const hacGpaCalculationSchema = z.object({
+  selectedCourses: z.array(z.string()),
+  excludedCourses: z.array(z.string()).optional(),
+});
+
+export type HACLoginInput = z.infer<typeof hacLoginSchema>;
+export type HACGpaCalculationInput = z.infer<typeof hacGpaCalculationSchema>;
 export const insertAssignmentSchema = createInsertSchema(assignments).omit({ id: true, createdAt: true });
 export const insertFlashcardDeckSchema = createInsertSchema(flashcardDecks).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertFlashcardSchema = createInsertSchema(flashcards).omit({ id: true, createdAt: true, updatedAt: true });

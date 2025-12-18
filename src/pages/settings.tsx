@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ColorCustomizationSettings } from '@/components/ColorCustomizationSettings';
 import { GoogleSyncSettings } from '@/components/GoogleSyncSettings';
+import { HACSettings } from '@/components/HACSettings';
 import { Palette, Settings as SettingsIcon, RefreshCw, User } from 'lucide-react';
 
 export default function Settings() {
@@ -45,19 +46,20 @@ export default function Settings() {
           </TabsContent>
 
           <TabsContent value="account" className="space-y-8">
+            {/* HAC Settings */}
+            <HACSettings />
+            
+            {/* Future account settings placeholder */}
             <Card className="border-2 border-dashed">
-              <CardHeader className="text-center py-12">
+              <CardHeader className="text-center py-8">
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-muted mb-4">
                   <User className="w-6 h-6 text-muted-foreground" />
                 </div>
-                <CardTitle className="text-xl">Account Settings</CardTitle>
+                <CardTitle className="text-lg">More Account Settings</CardTitle>
               </CardHeader>
-              <CardContent className="text-center pb-12">
-                <p className="text-muted-foreground mb-4">
-                  Account management features are coming soon!
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  We're working on profile management, security settings, and more.
+              <CardContent className="text-center pb-8">
+                <p className="text-muted-foreground text-sm">
+                  Profile management and security settings coming soon!
                 </p>
               </CardContent>
             </Card>

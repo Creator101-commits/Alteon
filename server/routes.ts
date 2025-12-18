@@ -20,8 +20,11 @@ import {
   insertCardSchema,
   insertChecklistSchema,
   insertLabelSchema,
-  insertCardLabelSchema
+  insertCardLabelSchema,
+  hacLoginSchema,
+  hacGpaCalculationSchema
 } from "@shared/schema";
+import * as hacScraper from "./hac";
 
 // Helper to create default lists for a new board
 async function createDefaultListsForBoard(boardId: string) {
@@ -1637,6 +1640,241 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: error.message });
       }
       res.status(500).json({ message: error.message || "Failed to delete quick task" });
+    }
+  });
+
+  // =====================================================
+  // HAC (Home Access Center) Grade Scraping Routes
+  // =====================================================
+
+  // HAC Login - Create session and authenticate with HAC
+  app.post("/api/hac/login", async (req, res) => {
+    try {
+      const data = hacLoginSchema.parse(req.body);
+      
+      const { session, error } = await hacScraper.createSessionAndLogin(
+        data.username,
+        data.password,
+        data.districtBaseUrl
+      );
+      
+      if (error || !session) {
+        return res.status(401).json({ 
+          success: false,
+          error: error || 'Login failed' 
+        });
+      }
+      
+      res.json({ 
+        success: true,
+        sessionId: session.sessionId,
+        message: 'Login successful' 
+      });
+    } catch (error: any) {
+      console.error('HAC login error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          success: false,
+          error: 'Invalid credentials format',
+          details: error.errors 
+        });
+      }
+      res.status(500).json({ 
+        success: false,
+        error: error.message || 'Server error during login' 
+      });
+    }
+  });
+
+  // HAC Grades - Fetch current grades and assignments
+  app.get("/api/hac/grades", async (req, res) => {
+    try {
+      const sessionId = req.headers['x-hac-session'] as string;
+      
+      if (!sessionId) {
+        return res.status(401).json({ 
+          error: 'HAC session required. Please log in first.' 
+        });
+      }
+      
+      const isValid = await hacScraper.validateSession(sessionId);
+      if (!isValid) {
+        return res.status(401).json({ 
+          error: 'Session expired or invalid. Please log in again.' 
+        });
+      }
+      
+      const gradesData = await hacScraper.fetchGrades(sessionId);
+      
+      if (!gradesData) {
+        return res.status(500).json({ 
+          error: 'Failed to fetch grades from HAC' 
+        });
+      }
+      
+      res.json(gradesData);
+    } catch (error: any) {
+      console.error('HAC grades error:', error);
+      res.status(500).json({ 
+        error: error.message || 'Failed to fetch grades' 
+      });
+    }
+  });
+
+  // HAC Assignments for specific course
+  app.get("/api/hac/assignments/:courseId", async (req, res) => {
+    try {
+      const sessionId = req.headers['x-hac-session'] as string;
+      const courseIndex = parseInt(req.params.courseId, 10);
+      
+      if (!sessionId) {
+        return res.status(401).json({ 
+          error: 'HAC session required. Please log in first.' 
+        });
+      }
+      
+      if (isNaN(courseIndex)) {
+        return res.status(400).json({ error: 'Invalid course ID' });
+      }
+      
+      const isValid = await hacScraper.validateSession(sessionId);
+      if (!isValid) {
+        return res.status(401).json({ 
+          error: 'Session expired or invalid. Please log in again.' 
+        });
+      }
+      
+      const assignments = await hacScraper.fetchAssignmentsForCourse(sessionId, courseIndex);
+      
+      if (!assignments) {
+        return res.status(500).json({ 
+          error: 'Failed to fetch assignments from HAC' 
+        });
+      }
+      
+      res.json({ assignments });
+    } catch (error: any) {
+      console.error('HAC assignments error:', error);
+      res.status(500).json({ 
+        error: error.message || 'Failed to fetch assignments' 
+      });
+    }
+  });
+
+  // HAC Report Card - Fetch report card data with all cycles
+  app.get("/api/hac/report-card", async (req, res) => {
+    try {
+      const sessionId = req.headers['x-hac-session'] as string;
+      
+      if (!sessionId) {
+        return res.status(401).json({ 
+          error: 'HAC session required. Please log in first.' 
+        });
+      }
+      
+      const isValid = await hacScraper.validateSession(sessionId);
+      if (!isValid) {
+        return res.status(401).json({ 
+          error: 'Session expired or invalid. Please log in again.' 
+        });
+      }
+      
+      const reportCard = await hacScraper.fetchReportCard(sessionId);
+      
+      if (!reportCard) {
+        return res.status(500).json({ 
+          error: 'Failed to fetch report card from HAC' 
+        });
+      }
+      
+      res.json(reportCard);
+    } catch (error: any) {
+      console.error('HAC report card error:', error);
+      res.status(500).json({ 
+        error: error.message || 'Failed to fetch report card' 
+      });
+    }
+  });
+
+  // HAC Calculate GPA - Calculate cumulative GPA with selected courses
+  app.post("/api/hac/calculate-gpa", async (req, res) => {
+    try {
+      const sessionId = req.headers['x-hac-session'] as string;
+      
+      if (!sessionId) {
+        return res.status(401).json({ 
+          error: 'HAC session required. Please log in first.' 
+        });
+      }
+      
+      const isValid = await hacScraper.validateSession(sessionId);
+      if (!isValid) {
+        return res.status(401).json({ 
+          error: 'Session expired or invalid. Please log in again.' 
+        });
+      }
+      
+      const data = hacGpaCalculationSchema.parse(req.body);
+      
+      const gpaData = await hacScraper.calculateCumulativeGpa(
+        sessionId,
+        data.selectedCourses,
+        data.excludedCourses || []
+      );
+      
+      if (!gpaData) {
+        return res.status(500).json({ 
+          error: 'Failed to calculate GPA' 
+        });
+      }
+      
+      res.json(gpaData);
+    } catch (error: any) {
+      console.error('HAC GPA calculation error:', error);
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ 
+          error: 'Invalid request format',
+          details: error.errors 
+        });
+      }
+      res.status(500).json({ 
+        error: error.message || 'Failed to calculate GPA' 
+      });
+    }
+  });
+
+  // HAC Logout - Destroy session
+  app.post("/api/hac/logout", async (req, res) => {
+    try {
+      const sessionId = req.headers['x-hac-session'] as string;
+      
+      if (sessionId) {
+        hacScraper.destroySession(sessionId);
+      }
+      
+      res.json({ success: true, message: 'Logged out successfully' });
+    } catch (error: any) {
+      console.error('HAC logout error:', error);
+      res.status(500).json({ 
+        error: error.message || 'Failed to logout' 
+      });
+    }
+  });
+
+  // HAC Session validation endpoint
+  app.get("/api/hac/session/validate", async (req, res) => {
+    try {
+      const sessionId = req.headers['x-hac-session'] as string;
+      
+      if (!sessionId) {
+        return res.json({ valid: false });
+      }
+      
+      const isValid = await hacScraper.validateSession(sessionId);
+      res.json({ valid: isValid });
+    } catch (error: any) {
+      console.error('HAC session validation error:', error);
+      res.json({ valid: false });
     }
   });
 

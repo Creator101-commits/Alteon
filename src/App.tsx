@@ -10,6 +10,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { ColorCustomizationProvider } from "@/contexts/ColorCustomizationContext";
 import { CalendarProvider } from "@/contexts/CalendarContext";
 import { ActivityProvider } from "@/contexts/ActivityContext";
+import { HACProvider } from "@/contexts/HACContext";
 import { usePersistentData } from "@/hooks/usePersistentData";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { DockNavigation } from "@/components/DockNavigation";
@@ -55,6 +56,7 @@ import {
   LazyTodos,
   LazyToDoList,
   LazySettings,
+  LazyHACGrades,
 } from "@/components/LazyComponents";
 
 import { Suspense, useEffect } from "react";
@@ -312,6 +314,16 @@ function Router() {
         </ProtectedRoute>
       </Route>
       
+      <Route path="/hac-grades">
+        <ProtectedRoute fallback={<Landing />}>
+          <AppLayout>
+            <Suspense fallback={<PageLoading message="Loading HAC Grades..." />}>
+              <LazyHACGrades />
+            </Suspense>
+          </AppLayout>
+        </ProtectedRoute>
+      </Route>
+      
       {/* Legal Pages - Public access */}
       <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/terms-of-service" component={TermsOfService} />
@@ -333,14 +345,16 @@ function App() {
         <ThemeProvider>
           <ColorCustomizationProvider>
             <AuthProvider>
-              <ActivityProvider>
-                <CalendarProvider>
-                  <TooltipProvider>
-                    <Toaster />
-                    <Router />
-                  </TooltipProvider>
-                </CalendarProvider>
-              </ActivityProvider>
+              <HACProvider>
+                <ActivityProvider>
+                  <CalendarProvider>
+                    <TooltipProvider>
+                      <Toaster />
+                      <Router />
+                    </TooltipProvider>
+                  </CalendarProvider>
+                </ActivityProvider>
+              </HACProvider>
             </AuthProvider>
           </ColorCustomizationProvider>
         </ThemeProvider>
