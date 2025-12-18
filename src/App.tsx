@@ -13,9 +13,9 @@ import { ActivityProvider } from "@/contexts/ActivityContext";
 import { HACProvider } from "@/contexts/HACContext";
 import { usePersistentData } from "@/hooks/usePersistentData";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-import { DockNavigation } from "@/components/DockNavigation";
 import { OptimizedDock } from "@/components/OptimizedDock";
-import { AppStateProvider } from "@/contexts/AppStateContext";
+import { Sidebar } from "@/components/Sidebar";
+import { AppStateProvider, usePreferences } from "@/contexts/AppStateContext";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -38,8 +38,6 @@ import SignupPage from "@/pages/signup";
 import CalendarCallback from "@/pages/calendar-callback";
 import PrivacyPolicy from "@/pages/privacy-policy";
 import TermsOfService from "@/pages/terms-of-service";
-import SpotlightDemo from "@/pages/spotlight-demo";
-import SignInDemo from "@/pages/signin-demo";
 import NotFound from "@/pages/not-found";
 
 // Lazy loaded components
@@ -160,21 +158,27 @@ function DataRestorationHandler() {
 }
 
 function AppLayout({ children }: { children: React.ReactNode }) {
+  const { preferences } = usePreferences();
+  const navigationStyle = preferences.navigationStyle || 'dock';
+
   return (
     <div className="h-screen flex flex-col">
       <AppNavigation />
       <DataRestorationHandler />
       <div className="flex flex-1 overflow-hidden">
-        <main className="flex-1 p-8 overflow-y-auto bg-background pb-32">
+        {/* Sidebar Navigation (when enabled) */}
+        {navigationStyle === 'sidebar' && <Sidebar />}
+        
+        <main className={`flex-1 p-8 overflow-y-auto bg-background ${navigationStyle === 'dock' ? 'pb-32' : 'pb-8'}`}>
           {children}
         </main>
       </div>
       
-      {/* Optimized Dock Navigation */}
-      <OptimizedDock />
+      {/* Dock Navigation (when enabled) */}
+      {navigationStyle === 'dock' && <OptimizedDock />}
       
       {/* Floating Action Button */}
-      <div className="fixed bottom-6 right-6">
+      <div className={`fixed ${navigationStyle === 'dock' ? 'bottom-24' : 'bottom-6'} right-6`}>
         <Button
           size="icon"
           className="w-10 h-10 bg-foreground text-background rounded-lg shadow-sm hover:shadow-md transition-all duration-150"
@@ -327,10 +331,6 @@ function Router() {
       {/* Legal Pages - Public access */}
       <Route path="/privacy-policy" component={PrivacyPolicy} />
       <Route path="/terms-of-service" component={TermsOfService} />
-      
-      {/* Demo Pages - Public access */}
-      <Route path="/spotlight-demo" component={SpotlightDemo} />
-      <Route path="/signin-demo" component={SignInDemo} />
       
       {/* Fallback to 404 */}
       <Route component={NotFound} />

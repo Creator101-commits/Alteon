@@ -956,7 +956,7 @@ ${msg}
   };
 
   return (
-    <div className="fixed inset-0 bg-background overflow-hidden">
+    <div className="h-full w-full bg-background overflow-hidden relative">
       {/* Top Bar with Dropdown - Minimal */}
       <div className="absolute top-4 right-4 z-10">
         <DropdownMenu>

@@ -21,6 +21,7 @@ interface AppState {
     reducedMotion: boolean;
     compactMode: boolean;
     autoSave: boolean;
+    navigationStyle: 'dock' | 'sidebar';
   };
   
   // Navigation state
@@ -62,6 +63,7 @@ const initialState: AppState = {
     reducedMotion: false,
     compactMode: false,
     autoSave: true,
+    navigationStyle: (typeof window !== 'undefined' ? localStorage.getItem('navigationStyle') as 'dock' | 'sidebar' : 'dock') || 'dock',
   },
   navigation: {
     breadcrumbs: [],
