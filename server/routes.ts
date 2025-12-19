@@ -1690,6 +1690,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/hac/grades", async (req, res) => {
     try {
       const sessionId = req.headers['x-hac-session'] as string;
+      const cycleParam = req.query.cycle as string | undefined;
+      const cycleNumber = cycleParam ? parseInt(cycleParam, 10) : undefined;
+      
+      console.log('[HAC API] Received cycle param:', cycleParam, '-> parsed:', cycleNumber);
       
       if (!sessionId) {
         return res.status(401).json({ 
@@ -1704,7 +1708,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      const gradesData = await hacScraper.fetchGrades(sessionId);
+      const gradesData = await hacScraper.fetchGrades(sessionId, cycleNumber);
       
       if (!gradesData) {
         return res.status(500).json({ 

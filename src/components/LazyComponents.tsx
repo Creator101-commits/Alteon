@@ -19,6 +19,7 @@ export const LazyToDoList = lazy(() => import('@/components/tools/ToDoList').the
 export const LazySettings = lazy(() => import('@/pages/settings'));
 export const LazyHACGrades = lazy(() => import('@/pages/hac-grades'));
 export const LazyGPACalculator = lazy(() => import('@/pages/gpa-calculator'));
+export const LazyCourseGrades = lazy(() => import('@/pages/course-grades'));
 
 // Lazy load heavy UI components
 export const LazyAnalyticsCharts = lazy(() => import('@/components/charts/AnalyticsCharts').then(m => ({ default: m.AnalyticsCharts })));

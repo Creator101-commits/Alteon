@@ -56,6 +56,7 @@ import {
   LazySettings,
   LazyHACGrades,
   LazyGPACalculator,
+  LazyCourseGrades,
 } from "@/components/LazyComponents";
 
 import { Suspense, useEffect } from "react";
@@ -334,6 +335,16 @@ function Router() {
           <AppLayout>
             <Suspense fallback={<PageLoading message="Loading GPA Calculator..." />}>
               <LazyGPACalculator />
+            </Suspense>
+          </AppLayout>
+        </ProtectedRoute>
+      </Route>
+      
+      <Route path="/course-grades/:courseId">
+        <ProtectedRoute fallback={<Landing />}>
+          <AppLayout>
+            <Suspense fallback={<PageLoading message="Loading Course..." />}>
+              <LazyCourseGrades />
             </Suspense>
           </AppLayout>
         </ProtectedRoute>

@@ -506,60 +506,6 @@ export default function GPACalculator() {
           </div>
         </div>
 
-        {/* GPA Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-          <Card className="bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-primary/20">
-                  <Award className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground font-medium">Cumulative GPA</p>
-                  <p className="text-3xl font-bold">{gpaStats.cumulativeGPA.toFixed(3)}</p>
-                </div>
-              </div>
-              <div className="mt-3 text-xs text-muted-foreground">
-                Based on {gpaScale === 'texas_6' ? '6.0' : '4.0'} scale
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-muted">
-                  <TrendingUp className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground font-medium">Average Grade</p>
-                  <p className="text-3xl font-bold">{gpaStats.averageGrade.toFixed(1)}%</p>
-                </div>
-              </div>
-              <div className="mt-3 text-xs text-muted-foreground">
-                {gpaStats.includedCount} courses included
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-muted">
-                  <GraduationCap className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground font-medium">Total Credits</p>
-                  <p className="text-3xl font-bold">{gpaStats.totalCredits}</p>
-                </div>
-              </div>
-              <div className="mt-3 text-xs text-muted-foreground">
-                {gpaStats.excludedCount > 0 && `${gpaStats.excludedCount} excluded`}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* Settings Row */}
         <Card className="mb-6">
           <CardContent className="py-4">

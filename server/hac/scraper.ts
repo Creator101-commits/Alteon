@@ -352,8 +352,12 @@ function parseAssignmentsFromClass($: cheerio.CheerioAPI, classElement: any): HA
 
 /**
  * Fetch grades from HAC
+ * @param sessionId - The session ID
+ * @param cycleNumber - Optional cycle number (1-6). If not provided, fetches current cycle.
  */
-export async function fetchGrades(sessionId: string): Promise<HACGradesResponse | null> {
+export async function fetchGrades(sessionId: string, cycleNumber?: number): Promise<HACGradesResponse | null> {
+  console.log('[HAC] fetchGrades called with sessionId:', sessionId.substring(0, 10) + '...', 'cycleNumber:', cycleNumber);
+  
   const session = activeSessions.get(sessionId);
   if (!session) {
     console.error('[HAC] fetchGrades: No session found for ID:', sessionId);
@@ -368,7 +372,12 @@ export async function fetchGrades(sessionId: string): Promise<HACGradesResponse 
   }
   
   const baseUrl = session.credentials.districtBaseUrl || DEFAULT_HAC_BASE_URL;
-  const gradesUrl = `${baseUrl}${HAC_ENDPOINTS.ASSIGNMENTS}`;
+  let gradesUrl = `${baseUrl}${HAC_ENDPOINTS.ASSIGNMENTS}`;
+  
+  // If a specific cycle is requested, add it to the URL
+  if (cycleNumber !== undefined && cycleNumber >= 1 && cycleNumber <= 6) {
+    gradesUrl += `?cycle=${cycleNumber}`;
+  }
   
   console.log('[HAC] Fetching grades from:', gradesUrl);
   console.log('[HAC] Using cookies:', session.cookies ? `${session.cookies.length} chars` : 'none');

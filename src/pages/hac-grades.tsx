@@ -3,42 +3,47 @@
  * Displays grades from Home Access Center
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useHAC } from '@/contexts/HACContext';
 import { useLocation } from 'wouter';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { 
   GraduationCap, 
   RefreshCw, 
   Loader2, 
-  ChevronDown,
-  ChevronRight,
-  BookOpen,
-  TrendingUp,
   AlertCircle,
   Settings,
-  Award,
   Calculator
 } from 'lucide-react';
 
-function getGradeColor(grade: number | null): string {
-  if (grade === null) return 'text-muted-foreground';
-  if (grade >= 90) return 'text-green-600 dark:text-green-400';
-  if (grade >= 80) return 'text-blue-600 dark:text-blue-400';
-  if (grade >= 70) return 'text-yellow-600 dark:text-yellow-400';
-  return 'text-red-600 dark:text-red-400';
-}
+// All 6 cycles for Leander ISD (matching format from scraper: "Cycle 1", "Cycle 2", etc.)
+const ALL_CYCLES = ['Cycle 1', 'Cycle 2', 'Cycle 3', 'Cycle 4', 'Cycle 5', 'Cycle 6'];
 
-function getGradeBadgeVariant(grade: number | null): 'default' | 'secondary' | 'destructive' | 'outline' {
-  if (grade === null) return 'outline';
-  if (grade >= 90) return 'default';
-  if (grade >= 70) return 'secondary';
-  return 'destructive';
+// Helper to extract cycle number from "Cycle X" format
+const getCycleNumber = (cycleName: string): number => {
+  const match = cycleName.match(/Cycle (\d+)/);
+  return match ? parseInt(match[1], 10) : 0;
+};
+
+// Grades data interface (same as in context)
+interface HACGradesData {
+  grades: {
+    courseId: string;
+    name: string;
+    grade: string;
+    numericGrade: number | null;
+    gpa: number | null;
+    assignments: {
+      dateDue: string;
+      dateAssigned: string;
+      name: string;
+      category: string;
+      score: string;
+    }[];
+  }[];
+  overallAverage: number;
+  highlightedCourse: any;
 }
 
 export default function HACGrades() {
@@ -52,8 +57,61 @@ export default function HACGrades() {
     error 
   } = useHAC();
   const [, setLocation] = useLocation();
-  const [expandedCourses, setExpandedCourses] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState('current');
+  const [selectedCycle, setSelectedCycle] = useState<string>('');
+
+  // Fetch report card on mount to get cycle data
+  useEffect(() => {
+    if (isConnected && !reportCard) {
+      fetchReportCard();
+    }
+  }, [isConnected, reportCard, fetchReportCard]);
+
+  // Determine the actual current cycle
+  // The report card only has FINALIZED cycles, but gradesData has the CURRENT cycle's grades
+  // We need to figure out which cycle is actually current
+  const currentCycleName = useMemo(() => {
+    // If we have gradesData, it represents the current active cycle
+    // We need to determine which cycle number that is
+    // The current cycle is one more than the last finalized cycle in report card
+    if (reportCard && reportCard.cycles.length > 0) {
+      const lastFinalizedCycle = reportCard.cycles[reportCard.cycles.length - 1]?.cycleName || '';
+      // Extract the number from "Cycle X" and add 1
+      const match = lastFinalizedCycle.match(/Cycle (\d+)/);
+      if (match) {
+        const lastCycleNum = parseInt(match[1], 10);
+        const currentCycleNum = lastCycleNum + 1;
+        if (currentCycleNum <= 6) {
+          return `Cycle ${currentCycleNum}`;
+        }
+      }
+      // If we're at the end, the last finalized IS current
+      return lastFinalizedCycle;
+    }
+    // If no report card data but we have grades, assume Cycle 1
+    if (gradesData) {
+      return 'Cycle 1';
+    }
+    return '';
+  }, [reportCard, gradesData]);
+
+  // Set default to the current cycle when determined
+  useEffect(() => {
+    if (currentCycleName && !selectedCycle) {
+      setSelectedCycle(currentCycleName);
+    }
+  }, [currentCycleName, selectedCycle]);
+
+
+
+  // Get cycle data for a given cycle name (report card data)
+  const getCycleData = (cycleName: string) => {
+    return reportCard?.cycles.find(c => c.cycleName === cycleName);
+  };
+
+  // Check if the selected cycle is the current active cycle (uses gradesData)
+  const isCurrentActiveCycle = (cycleName: string) => {
+    return cycleName === currentCycleName;
+  };
 
   // Redirect to settings if not connected
   useEffect(() => {
@@ -67,25 +125,6 @@ export default function HACGrades() {
       return () => clearTimeout(timer);
     }
   }, [isConnected, isLoading, setLocation]);
-
-  // Fetch report card when tab changes
-  useEffect(() => {
-    if (activeTab === 'report-card' && !reportCard && isConnected) {
-      fetchReportCard();
-    }
-  }, [activeTab, reportCard, isConnected, fetchReportCard]);
-
-  const toggleCourse = (courseId: string) => {
-    setExpandedCourses(prev => {
-      const next = new Set(prev);
-      if (next.has(courseId)) {
-        next.delete(courseId);
-      } else {
-        next.add(courseId);
-      }
-      return next;
-    });
-  };
 
   if (!isConnected) {
     return (
@@ -160,221 +199,132 @@ export default function HACGrades() {
           </Card>
         )}
 
-        {/* Stats Overview */}
-        {gradesData && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-2xl font-bold">{gradesData.overallAverage.toFixed(1)}%</div>
-                <p className="text-xs text-muted-foreground">Overall Average</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-2xl font-bold">{gradesData.grades.length}</div>
-                <p className="text-xs text-muted-foreground">Active Courses</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-2xl font-bold">
-                  {gradesData.grades.filter(g => g.numericGrade !== null && g.numericGrade >= 90).length}
-                </div>
-                <p className="text-xs text-muted-foreground">A's</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="text-2xl font-bold">
-                  {gradesData.grades.reduce((sum, g) => sum + g.assignments.length, 0)}
-                </div>
-                <p className="text-xs text-muted-foreground">Assignments</p>
-              </CardContent>
-            </Card>
+        {/* Cycle Tabs - Always show all 6 cycles */}
+        <div className="flex items-center gap-1 mb-6 overflow-x-auto pb-2">
+          {ALL_CYCLES.map((cycleName) => {
+            const cycleData = getCycleData(cycleName);
+            const hasReportCardData = cycleData && cycleData.courses.length > 0;
+            const isCurrentCycle = cycleName === currentCycleName;
+            // Has data if: report card has it, OR it's current cycle with gradesData
+            const hasData = hasReportCardData || (isCurrentCycle && gradesData);
+            
+            return (
+              <button
+                key={cycleName}
+                onClick={() => setSelectedCycle(cycleName)}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
+                  selectedCycle === cycleName
+                    ? 'bg-primary text-primary-foreground'
+                    : hasData 
+                      ? 'bg-muted hover:bg-muted/80 text-muted-foreground'
+                      : 'bg-muted/40 hover:bg-muted/50 text-muted-foreground/50'
+                }`}
+              >
+                {cycleName}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Current Cycle Indicator */}
+        {selectedCycle && (
+          <div className="mb-4 flex items-center gap-2">
+            <h2 className="text-lg font-semibold text-foreground">
+              {selectedCycle} Grades
+            </h2>
+            {selectedCycle === currentCycleName && (
+              <span className="px-2 py-0.5 text-xs font-medium bg-green-500/20 text-green-600 dark:text-green-400 rounded-full">
+                Current
+              </span>
+            )}
           </div>
         )}
 
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-2 mb-6">
-            <TabsTrigger value="current">Current Grades</TabsTrigger>
-            <TabsTrigger value="report-card">Report Card</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="current" className="space-y-4">
-            {isLoading && !gradesData ? (
-              <Card>
-                <CardContent className="py-12 text-center">
-                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-muted-foreground">Loading grades...</p>
-                </CardContent>
-              </Card>
-            ) : gradesData ? (
-              gradesData.grades.map((course) => (
-                <Collapsible
+        {/* Course List */}
+        <div className="space-y-2">
+          {(isLoading && !reportCard && !gradesData) ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" />
+                <p className="text-muted-foreground">Loading grades...</p>
+              </CardContent>
+            </Card>
+          ) : (() => {
+            // Check if this is the current cycle
+            const isCurrentCycle = selectedCycle === currentCycleName;
+            
+            // For current cycle: use gradesData (has assignments)
+            // For past cycles: use report card data (summary grades only)
+            if (isCurrentCycle && gradesData && gradesData.grades.length > 0) {
+              // Display current cycle with assignments
+              return gradesData.grades.map((course) => (
+                <div
                   key={course.courseId}
-                  open={expandedCourses.has(course.courseId)}
-                  onOpenChange={() => toggleCourse(course.courseId)}
+                  onClick={() => setLocation(`/course-grades/${encodeURIComponent(course.courseId)}`)}
+                  className="flex items-center justify-between p-4 rounded-lg bg-card border hover:bg-muted/30 transition-colors cursor-pointer"
                 >
-                  <Card>
-                    <CollapsibleTrigger asChild>
-                      <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            {expandedCourses.has(course.courseId) ? (
-                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                            )}
-                            <div>
-                              <CardTitle className="text-base">{course.name}</CardTitle>
-                              <CardDescription className="flex items-center gap-2 mt-1">
-                                <BookOpen className="h-3 w-3" />
-                                {course.assignments.length} assignments
-                                {course.gpa && (
-                                  <>
-                                    <span className="text-muted-foreground">•</span>
-                                    <TrendingUp className="h-3 w-3" />
-                                    GPA: {course.gpa.toFixed(2)}
-                                  </>
-                                )}
-                              </CardDescription>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className={`text-2xl font-bold ${getGradeColor(course.numericGrade)}`}>
-                              {course.grade}
-                            </div>
-                            {course.numericGrade !== null && (
-                              <Progress 
-                                value={course.numericGrade} 
-                                className="w-24 h-2 mt-2"
-                              />
-                            )}
-                          </div>
-                        </div>
-                      </CardHeader>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <CardContent className="border-t">
-                        {course.assignments.length === 0 ? (
-                          <p className="text-sm text-muted-foreground py-4 text-center">
-                            No assignments yet
-                          </p>
-                        ) : (
-                          <div className="divide-y">
-                            {course.assignments.map((assignment, idx) => (
-                              <div 
-                                key={idx} 
-                                className="py-3 flex items-center justify-between"
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-medium text-sm truncate">
-                                    {assignment.name}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {assignment.category} • Due: {assignment.dateDue}
-                                  </p>
-                                </div>
-                                <Badge 
-                                  variant={getGradeBadgeVariant(
-                                    assignment.score === 'N/A' ? null : parseFloat(assignment.score)
-                                  )}
-                                  className="ml-4"
-                                >
-                                  {assignment.score}
-                                </Badge>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </CardContent>
-                    </CollapsibleContent>
-                  </Card>
-                </Collapsible>
-              ))
-            ) : null}
-          </TabsContent>
-
-          <TabsContent value="report-card" className="space-y-4">
-            {isLoading && !reportCard ? (
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-foreground">{course.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {course.courseId} • {course.assignments.length} assignments
+                    </p>
+                  </div>
+                  <div className={`text-xl font-bold px-3 py-1 rounded-lg ${
+                    course.numericGrade !== null && course.numericGrade >= 90 
+                      ? 'bg-green-500/20 text-green-600 dark:text-green-400' 
+                      : course.numericGrade !== null && course.numericGrade >= 80 
+                      ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                      : course.numericGrade !== null && course.numericGrade >= 70
+                      ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
+                      : 'bg-red-500/20 text-red-600 dark:text-red-400'
+                  }`}>
+                    {course.grade}
+                  </div>
+                </div>
+              ));
+            }
+            
+            // For past cycles, show report card data (summary only, no assignments)
+            const cycleData = getCycleData(selectedCycle);
+            if (cycleData && cycleData.courses.length > 0) {
+              return cycleData.courses.map((course, idx) => (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between p-4 rounded-lg bg-card border opacity-90"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-foreground">{course.course}</p>
+                    <p className="text-xs text-muted-foreground">{course.courseCode} • Finalized</p>
+                  </div>
+                  <div className={`text-xl font-bold px-3 py-1 rounded-lg ${
+                    course.grade >= 90 
+                      ? 'bg-green-500/20 text-green-600 dark:text-green-400' 
+                      : course.grade >= 80 
+                      ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                      : course.grade >= 70
+                      ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
+                      : 'bg-red-500/20 text-red-600 dark:text-red-400'
+                  }`}>
+                    {course.grade.toFixed(0)}
+                  </div>
+                </div>
+              ));
+            }
+            
+            // No data for this cycle
+            return (
               <Card>
-                <CardContent className="py-12 text-center">
-                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-muted-foreground">Loading report card...</p>
-                </CardContent>
-              </Card>
-            ) : reportCard ? (
-              <>
-                {/* Overall GPA */}
-                <Card className="bg-gradient-to-r from-primary/10 to-primary/5">
-                  <CardContent className="py-6">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Award className="h-8 w-8 text-primary" />
-                        <div>
-                          <p className="text-sm text-muted-foreground">Overall GPA</p>
-                          <p className="text-3xl font-bold">{reportCard.overallGpa.toFixed(2)}</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-muted-foreground">Cycles</p>
-                        <p className="text-2xl font-bold">{reportCard.cycles.length}</p>
-                      </div>
+                  <CardContent className="py-12 text-center">
+                    <div className="text-muted-foreground/50">
+                      <GraduationCap className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p className="text-lg font-medium">No grades available for {selectedCycle}</p>
+                      <p className="text-sm mt-1">Grades will appear here once they are posted.</p>
                     </div>
                   </CardContent>
                 </Card>
-
-                {/* Cycles */}
-                {reportCard.cycles.map((cycle, idx) => (
-                  <Card key={idx}>
-                    <CardHeader>
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg">{cycle.cycleName}</CardTitle>
-                        <Badge variant="secondary">
-                          GPA: {cycle.averageGpa.toFixed(2)}
-                        </Badge>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="divide-y">
-                        {cycle.courses.map((course, cIdx) => (
-                          <div 
-                            key={cIdx}
-                            className="py-3 flex items-center justify-between"
-                          >
-                            <div>
-                              <p className="font-medium text-sm">{course.course}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {course.courseCode}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <p className={`font-bold ${getGradeColor(course.grade)}`}>
-                                {course.grade}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                GPA: {course.gpa.toFixed(2)}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-
-                {reportCard.cycles.length === 0 && (
-                  <Card>
-                    <CardContent className="py-12 text-center">
-                      <p className="text-muted-foreground">No report card data available</p>
-                    </CardContent>
-                  </Card>
-                )}
-              </>
-            ) : null}
-          </TabsContent>
-        </Tabs>
+            );
+          })()}
+        </div>
       </div>
     </div>
   );

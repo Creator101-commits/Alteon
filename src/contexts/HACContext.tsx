@@ -54,12 +54,14 @@ interface HACContextType {
   error: string | null;
   gradesData: HACGradesData | null;
   reportCard: HACReportCard | null;
+  cycleGradesCache: Map<number, HACGradesData>;
   
   // Actions
   connect: (credentials: HACCredentials) => Promise<boolean>;
   disconnect: () => void;
   refreshGrades: () => Promise<void>;
   fetchReportCard: () => Promise<void>;
+  fetchGradesForCycle: (cycleNumber: number) => Promise<HACGradesData | null>;
   
   // Cached credentials (for display only - password is masked)
   cachedUsername: string | null;
@@ -92,6 +94,7 @@ export const HACProvider = ({ children }: HACProviderProps) => {
   const [gradesData, setGradesData] = useState<HACGradesData | null>(null);
   const [reportCard, setReportCard] = useState<HACReportCard | null>(null);
   const [cachedUsername, setCachedUsername] = useState<string | null>(null);
+  const [cycleGradesCache, setCycleGradesCache] = useState<Map<number, HACGradesData>>(new Map());
 
   // Load cached credentials on mount
   useEffect(() => {
@@ -309,6 +312,51 @@ export const HACProvider = ({ children }: HACProviderProps) => {
     }
   }, [sessionId]);
 
+  // Fetch grades for a specific cycle
+  const fetchGradesForCycle = useCallback(async (cycleNumber: number): Promise<HACGradesData | null> => {
+    if (!sessionId) {
+      setError('Not connected to HAC');
+      return null;
+    }
+    
+    // Check cache first
+    if (cycleGradesCache.has(cycleNumber)) {
+      return cycleGradesCache.get(cycleNumber) || null;
+    }
+    
+    try {
+      const response = await fetch(getApiUrl(`/api/hac/grades?cycle=${cycleNumber}`), {
+        headers: {
+          'X-HAC-Session': sessionId,
+        },
+      });
+      
+      if (!response.ok) {
+        const data = await response.json();
+        if (response.status === 401) {
+          setIsConnected(false);
+          setSessionId(null);
+          setError('Session expired. Please reconnect.');
+        }
+        return null;
+      }
+      
+      const data: HACGradesData = await response.json();
+      
+      // Cache the result
+      setCycleGradesCache(prev => {
+        const newCache = new Map(prev);
+        newCache.set(cycleNumber, data);
+        return newCache;
+      });
+      
+      return data;
+    } catch (err) {
+      console.error('Failed to fetch grades for cycle:', err);
+      return null;
+    }
+  }, [sessionId, cycleGradesCache]);
+
   const value: HACContextType = {
     isConnected,
     isLoading,
@@ -316,10 +364,12 @@ export const HACProvider = ({ children }: HACProviderProps) => {
     error,
     gradesData,
     reportCard,
+    cycleGradesCache,
     connect,
     disconnect,
     refreshGrades,
     fetchReportCard,
+    fetchGradesForCycle,
     cachedUsername,
   };
 
