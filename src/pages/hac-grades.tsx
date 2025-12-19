@@ -22,7 +22,8 @@ import {
   TrendingUp,
   AlertCircle,
   Settings,
-  Award
+  Award,
+  Calculator
 } from 'lucide-react';
 
 function getGradeColor(grade: number | null): string {
@@ -125,18 +126,27 @@ export default function HACGrades() {
               Your grades from Home Access Center
             </p>
           </div>
-          <Button 
-            variant="outline" 
-            onClick={() => refreshGrades()}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4 mr-2" />
-            )}
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="outline"
+              onClick={() => setLocation('/gpa-calculator')}
+            >
+              <Calculator className="h-4 w-4 mr-2" />
+              GPA Calculator
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => refreshGrades()}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {error && (
