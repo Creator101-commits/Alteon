@@ -5,12 +5,38 @@ import { EnhancedSignInPage } from "@/components/ui/enhanced-sign-in";
 import { useTheme } from "@/contexts/ThemeContext";
 import { useEffect } from "react";
 
+const CREDS_KEY = 'alteon_saved_credentials';
+
 export default function AuthPage() {
   const { user, signIn, signInWithEmailPassword, signUpWithEmailPassword } = useAuth();
   const { theme } = useTheme();
   const [, setLocation] = useLocation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [savedEmail, setSavedEmail] = useState("");
+  const [savedPassword, setSavedPassword] = useState("");
+
+  // Load saved credentials on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(CREDS_KEY);
+      if (saved) {
+        const { email, password, rememberMe } = JSON.parse(saved);
+        if (rememberMe && email && password) {
+          setSavedEmail(email);
+          setSavedPassword(password);
+          // Auto-login with saved credentials
+          signInWithEmailPassword(email, password).catch((err) => {
+            console.error('Auto-login failed:', err);
+            // Clear invalid credentials
+            localStorage.removeItem(CREDS_KEY);
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load saved credentials:', err);
+    }
+  }, []);
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -24,6 +50,7 @@ export default function AuthPage() {
     const formData = new FormData(event.currentTarget);
     const email = formData.get("email") as string;
     const password = formData.get("password") as string;
+    const rememberMe = formData.get("rememberMe") === "on";
 
     if (!email || !password) {
       setError("Please fill in all fields.");
@@ -34,6 +61,13 @@ export default function AuthPage() {
       setIsLoading(true);
       setError("");
       await signInWithEmailPassword(email, password);
+      
+      // Save credentials if remember me is checked
+      if (rememberMe) {
+        localStorage.setItem(CREDS_KEY, JSON.stringify({ email, password, rememberMe: true }));
+      } else {
+        localStorage.removeItem(CREDS_KEY);
+      }
     } catch (error: any) {
       console.error("Email sign in error:", error);
       if (error?.code === 'auth/user-not-found') {
@@ -92,6 +126,8 @@ export default function AuthPage() {
         onGoogleSignIn={handleGoogleSignIn}
         onResetPassword={handleResetPassword}
         onCreateAccount={handleCreateAccount}
+        savedEmail={savedEmail}
+        savedPassword={savedPassword}
       />
       {error && (
         <div className="fixed top-4 right-4 z-50 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg">

@@ -290,14 +290,13 @@ export const Flashcards = () => {
 
     const allowedTypes = [
       "application/pdf",
-      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation"
     ];
     
     if (!allowedTypes.includes(file.type)) {
       toast({
         title: "Error",
-        description: "Please upload a PDF, PPTX, or XLSX file",
+        description: "Please upload a PDF or PPTX file",
         variant: "destructive",
       });
       return;
@@ -1030,7 +1029,7 @@ Return only the JSON array, no other text.`;
                       <SelectItem value="document">
                         <div className="flex items-center">
                           <FileText className="h-4 w-4 mr-2" />
-                          Upload Document (PDF/PPTX/XLSX)
+                          Upload Document (PDF/PPTX)
                         </div>
                       </SelectItem>
                       <SelectItem value="file">
@@ -1115,7 +1114,7 @@ Return only the JSON array, no other text.`;
                       <Input
                         id="document-upload"
                         type="file"
-                        accept=".pdf,.pptx,.xlsx"
+                        accept=".pdf,.pptx"
                         onChange={handleDocumentUpload}
                         disabled={isProcessingDocument}
                         className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground"

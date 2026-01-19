@@ -5,7 +5,7 @@ export class ProcessingQueue {
   private channelActiveCount: Map<string, number> = new Map();
   private processors: Map<string, (job: DocumentProcessingJob) => Promise<void>> = new Map();
 
-  constructor(private channelConcurrency: Record<string, number> = { pdf: 2, pptx: 2, xlsx: 2 }) {}
+  constructor(private channelConcurrency: Record<string, number> = { pdf: 2, pptx: 2 }) {}
 
   registerProcessor(channel: string, processor: (job: DocumentProcessingJob) => Promise<void>): void {
     this.processors.set(channel, processor);

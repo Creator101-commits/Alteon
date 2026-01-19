@@ -178,16 +178,6 @@ function AppLayout({ children }: { children: React.ReactNode }) {
       
       {/* Dock Navigation (when enabled) */}
       {navigationStyle === 'dock' && <OptimizedDock />}
-      
-      {/* Floating Action Button */}
-      <div className={`fixed ${navigationStyle === 'dock' ? 'bottom-24' : 'bottom-6'} right-6`}>
-        <Button
-          size="icon"
-          className="w-10 h-10 bg-foreground text-background rounded-lg shadow-sm hover:shadow-md transition-all duration-150"
-        >
-          <Plus className="h-4 w-4" />
-        </Button>
-      </div>
     </div>
   );
 }

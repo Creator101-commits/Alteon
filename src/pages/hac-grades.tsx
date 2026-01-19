@@ -287,10 +287,14 @@ export default function HACGrades() {
             // For past cycles, show report card data (summary only, no assignments)
             const cycleData = getCycleData(selectedCycle);
             if (cycleData && cycleData.courses.length > 0) {
+              // Extract cycle number from "Cycle X" format
+              const cycleNum = getCycleNumber(selectedCycle);
+              
               return cycleData.courses.map((course, idx) => (
                 <div
                   key={idx}
-                  className="flex items-center justify-between p-4 rounded-lg bg-card border opacity-90"
+                  onClick={() => setLocation(`/course-grades/${encodeURIComponent(course.courseCode)}?cycle=${cycleNum}`)}
+                  className="flex items-center justify-between p-4 rounded-lg bg-card border opacity-90 hover:bg-muted/30 transition-colors cursor-pointer"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-foreground">{course.course}</p>
@@ -305,7 +309,7 @@ export default function HACGrades() {
                       ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
                       : 'bg-red-500/20 text-red-600 dark:text-red-400'
                   }`}>
-                    {course.grade.toFixed(0)}
+                    {course.grade.toFixed(2)}
                   </div>
                 </div>
               ));

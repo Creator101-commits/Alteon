@@ -1,6 +1,6 @@
 import type { Note, Flashcard, Assignment } from "@shared/schema";
 
-export type DocumentKind = "pdf" | "pptx" | "xlsx";
+export type DocumentKind = "pdf" | "pptx";
 
 export interface DocumentProcessingLimits {
   pdf: {
@@ -9,11 +9,6 @@ export interface DocumentProcessingLimits {
   };
   pptx: {
     maxSlides: number;
-    maxBytes: number;
-  };
-  xlsx: {
-    maxCells: number;
-    maxWorksheets: number;
     maxBytes: number;
   };
 }

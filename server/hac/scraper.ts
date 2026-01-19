@@ -31,24 +31,38 @@ class CookieJar {
   addFromResponse(response: Response) {
     let setCookieHeaders: string[] = [];
     
-    // Try getSetCookie first (newer Node.js)
-    if (typeof response.headers.getSetCookie === 'function') {
-      setCookieHeaders = response.headers.getSetCookie();
+    // Try getSetCookie first (newer Node.js 20+)
+    if (typeof (response.headers as any).getSetCookie === 'function') {
+      setCookieHeaders = (response.headers as any).getSetCookie();
+      console.log('[HAC Cookie] Using getSetCookie(), found', setCookieHeaders.length, 'cookies');
     } else {
-      // Fallback: get raw header
-      const setCookieHeader = response.headers.get('set-cookie');
-      if (setCookieHeader) {
-        // Split by comma, but be careful with expires dates
-        setCookieHeaders = setCookieHeader.split(/,(?=\s*[^;]+=[^;]+)/);
+      // Fallback: manually parse from raw headers
+      // In Node.js fetch, multiple set-cookie headers may be available via raw()
+      if (typeof (response.headers as any).raw === 'function') {
+        const rawHeaders = (response.headers as any).raw();
+        setCookieHeaders = rawHeaders['set-cookie'] || [];
+        console.log('[HAC Cookie] Using raw(), found', setCookieHeaders.length, 'cookies');
+      } else {
+        // Last resort: try to get as single header (may lose some cookies)
+        const setCookieHeader = response.headers.get('set-cookie');
+        if (setCookieHeader) {
+          // Simple split by comma - this may not work for all cases
+          setCookieHeaders = [setCookieHeader];
+          console.log('[HAC Cookie] Using single header fallback, found 1 cookie header');
+        } else {
+          console.log('[HAC Cookie] No set-cookie headers found in response');
+        }
       }
     }
     
+    console.log('[HAC Cookie] Processing', setCookieHeaders.length, 'set-cookie headers');
     for (const setCookie of setCookieHeaders) {
       const parts = setCookie.split(';')[0].split('=');
       if (parts.length >= 2) {
         const name = parts[0].trim();
         const value = parts.slice(1).join('=').trim();
         this.cookies.set(name, value);
+        console.log('[HAC Cookie] Added cookie:', name);
       }
     }
   }
@@ -241,12 +255,19 @@ export async function createSessionAndLogin(
     
     console.log('[HAC] Login response status:', loginResponse.status);
     console.log('[HAC] Final URL after redirects:', finalUrl);
+    console.log('[HAC] Cookies collected:', cookieJar.size());
     
     // Check if login was successful (should redirect away from login page)
     if (finalUrl.includes('LogOn')) {
       // Still on login page = failed
       console.error('[HAC] Login failed - still on login page');
       return { session: null, error: 'Invalid username or password' };
+    }
+    
+    // Check if we got any session cookies
+    if (cookieJar.size() === 0) {
+      console.error('[HAC] Login failed - no cookies received from server');
+      return { session: null, error: 'Unable to establish session with HAC. The server may be unreachable or blocking automated access.' };
     }
     
     const finalCookies = cookieJar.toString();
@@ -374,9 +395,11 @@ export async function fetchGrades(sessionId: string, cycleNumber?: number): Prom
   const baseUrl = session.credentials.districtBaseUrl || DEFAULT_HAC_BASE_URL;
   let gradesUrl = `${baseUrl}${HAC_ENDPOINTS.ASSIGNMENTS}`;
   
-  // If a specific cycle is requested, add it to the URL
+  // If a specific cycle is requested, try different parameter formats
+  // HAC might use different parameter names like 'MarkingPeriod', 'ReportPeriod', etc.
   if (cycleNumber !== undefined && cycleNumber >= 1 && cycleNumber <= 6) {
-    gradesUrl += `?cycle=${cycleNumber}`;
+    // Try the ReportPeriod parameter format (common in eSchoolPlus/PowerSchool)
+    gradesUrl += `?ReportPeriod=${cycleNumber}`;
   }
   
   console.log('[HAC] Fetching grades from:', gradesUrl);
@@ -433,6 +456,14 @@ export async function fetchGrades(sessionId: string, cycleNumber?: number): Prom
       
       const courseName = courseNameElem.text().trim();
       
+      // Try to extract course code from the course name
+      // Format is usually like "1210ADV - 1 • English II Advanced"
+      let courseCode = String(idx); // fallback to index
+      const courseCodeMatch = courseName.match(/^([A-Z0-9]+(?:-\s*\d+)?)/);
+      if (courseCodeMatch) {
+        courseCode = courseCodeMatch[1].trim();
+      }
+      
       // Get grade average
       const avgElem = $cls.find('span.sg-header-heading.sg-right');
       let gradeText = '';
@@ -459,7 +490,7 @@ export async function fetchGrades(sessionId: string, cycleNumber?: number): Prom
       const assignments = parseAssignmentsFromClass($, cls);
       
       grades.push({
-        courseId: String(idx),
+        courseId: courseCode,
         name: courseName,
         grade: gradeText,
         numericGrade,

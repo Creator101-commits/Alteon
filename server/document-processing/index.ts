@@ -3,7 +3,7 @@
  * 
  * This module provides the Ephemeral Document Intelligence service
  * for Alteon V1. It handles upload, parsing, AI generation, and persistence
- * of educational assets from PDF, PPTX, and XLSX documents.
+ * of educational assets from PDF and PPTX documents.
  * 
  * @example
  * ```typescript

@@ -956,7 +956,7 @@ export async function createDocumentSession(data: {
   userId: string;
   jobId: string;
   fileName: string;
-  kind: "pdf" | "pptx" | "xlsx";
+  kind: "pdf" | "pptx";
 }) {
   // Store session metadata in memory or database
   // For now, return a simple session object

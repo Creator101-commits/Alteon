@@ -57,6 +57,7 @@ import { groqAPI, ChatMessage as GroqChatMessage } from "@/lib/groq";
 import { useToast } from "@/hooks/use-toast";
 import { useActivity } from "@/contexts/ActivityContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePreferences } from "@/contexts/AppStateContext";
 import { getYouTubeTranscriptSafe } from "@/lib/youtubeTranscript";
 
 interface ChatMessage {
@@ -71,7 +72,7 @@ interface ChatMessage {
 interface UploadedDocument {
   jobId: string;
   fileName: string;
-  kind: "pdf" | "pptx" | "xlsx";
+  kind: "pdf" | "pptx";
   phase: string;
   extractedContent?: string;
   status: "uploading" | "processing" | "ready" | "error";
@@ -122,6 +123,8 @@ export default function AiChat() {
   const { toast } = useToast();
   const { addActivity } = useActivity();
   const { user } = useAuth();
+  const { preferences } = usePreferences();
+  const isDockNav = preferences.navigationStyle === 'dock' || !preferences.navigationStyle;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -643,8 +646,7 @@ ${msg}
     // Check file types
     const allowedTypes = [
       "application/pdf",
-      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation"
     ];
     
     const validFiles = Array.from(files).filter(file => allowedTypes.includes(file.type));
@@ -652,7 +654,7 @@ ${msg}
     if (validFiles.length === 0) {
       toast({
         title: "Error",
-        description: "Please upload PDF, PPTX, or XLSX files",
+        description: "Please upload PDF or PPTX files",
         variant: "destructive",
       });
       return;
@@ -661,7 +663,7 @@ ${msg}
     if (validFiles.length < files.length) {
       toast({
         title: "Warning",
-        description: `${files.length - validFiles.length} file(s) skipped - only PDF, PPTX, XLSX allowed`,
+        description: `${files.length - validFiles.length} file(s) skipped - only PDF, PPTX allowed`,
       });
     }
 
@@ -690,7 +692,7 @@ ${msg}
         const doc: UploadedDocument = {
           jobId: data.jobId,
           fileName: file.name,
-          kind: file.type.includes("pdf") ? "pdf" : file.type.includes("presentation") ? "pptx" : "xlsx",
+          kind: file.type.includes("pdf") ? "pdf" : "pptx",
           phase: data.phase,
           status: "processing",
         };
@@ -772,18 +774,17 @@ ${msg}
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Check file type - now supporting PDF, PPTX, XLSX, and TXT
+    // Check file type - now supporting PDF, PPTX, and TXT
     const allowedTypes = [
       "text/plain", 
       "application/pdf",
-      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      "application/vnd.openxmlformats-officedocument.presentationml.presentation"
     ];
     
     if (!allowedTypes.includes(file.type)) {
       toast({
         title: "Error",
-        description: "Please upload a PDF, PPTX, XLSX, or TXT file",
+        description: "Please upload a PDF, PPTX, or TXT file",
         variant: "destructive",
       });
       return;
@@ -803,7 +804,7 @@ ${msg}
         content = await file.text();
         fileType = "text";
       } else {
-        // Handle PDF, PPTX, XLSX using document processing service
+        // Handle PDF, PPTX using document processing service
         setProcessingStatus("Uploading document...");
         const formData = new FormData();
         formData.append("file", file);
@@ -958,13 +959,13 @@ ${msg}
   return (
     <div className="h-full w-full bg-background overflow-hidden relative">
       {/* Top Bar with Dropdown - Minimal */}
-      <div className="absolute top-4 right-4 z-10">
+      <div className="absolute top-2 right-2 z-50">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button 
               variant="ghost" 
               size="sm"
-              className="bg-card/80 text-foreground border border-border hover:bg-card rounded-lg backdrop-blur-sm"
+              className="bg-card/95 text-foreground border border-border hover:bg-card rounded-lg backdrop-blur-md shadow-lg"
             >
               {activeTab === "chat" && (
                 <>
@@ -1017,7 +1018,7 @@ ${msg}
             <input
               ref={documentInputRef}
               type="file"
-              accept=".pdf,.pptx,.xlsx"
+              accept=".pdf,.pptx"
               multiple
               onChange={handleDocumentUpload}
               style={{ position: 'absolute', top: 0, left: 0, opacity: 0, pointerEvents: 'none' }}
@@ -1039,115 +1040,107 @@ ${msg}
                 {/* v0-Style Input Box - CENTERED FOCAL POINT */}
                 <div className="w-full max-w-4xl mb-6">
                   <div className="relative bg-card rounded-xl border border-border shadow-lg">
-                    <div className="overflow-y-auto">
-                      <Textarea
-                        value={chatInput}
-                        onChange={(e) => setChatInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' && !e.shiftKey) {
-                            e.preventDefault();
-                            if (chatInput.trim() && !isLoading) {
-                              handleChatMessage();
-                            }
+                    <Textarea
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          if (chatInput.trim() && !isLoading) {
+                            handleChatMessage();
                           }
-                        }}
-                        placeholder="Ask anything..."
-                        disabled={isLoading}
-                        className={cn(
-                          "w-full px-4 py-3",
-                          "resize-none",
-                          "bg-transparent",
-                          "border-none",
-                          "text-foreground text-sm",
-                          "focus:outline-none",
-                          "focus-visible:ring-0 focus-visible:ring-offset-0",
-                          "placeholder:text-muted-foreground placeholder:text-sm",
-                          "min-h-[60px] max-h-[200px]"
-                        )}
-                        style={{ overflow: "hidden" }}
-                      />
-                    </div>
+                        }
+                      }}
+                      placeholder="Ask anything..."
+                      disabled={isLoading}
+                      className={cn(
+                        "w-full px-4 pt-4 pb-14",
+                        "resize-none",
+                        "bg-transparent",
+                        "border-none",
+                        "text-foreground text-sm",
+                        "focus:outline-none",
+                        "focus-visible:ring-0 focus-visible:ring-offset-0",
+                        "placeholder:text-muted-foreground placeholder:text-sm",
+                        "min-h-[80px] max-h-[200px]"
+                      )}
+                    />
 
-                    <div className="flex items-center justify-between p-3 border-t border-border">
-                      <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
-                        <button
-                          type="button"
-                          onClick={() => documentInputRef.current?.click()}
-                          disabled={isUploadingDoc}
-                          className="group p-2 hover:bg-muted rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50 shrink-0"
-                          title="Upload PDF, PPTX, or XLSX (multiple files supported)"
-                        >
-                          {isUploadingDoc ? (
-                            <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
-                          ) : (
-                            <Upload className="w-4 h-4 text-muted-foreground" />
-                          )}
-                          <span className="text-xs text-muted-foreground hidden group-hover:inline transition-opacity">
-                            {isUploadingDoc ? "Uploading..." : "Attach Files"}
-                          </span>
-                        </button>
-                        {uploadedDocuments.length > 0 && (
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {uploadedDocuments.map((doc) => (
-                              <div 
-                                key={doc.jobId}
-                                className={`flex items-center gap-1 px-2 py-1 rounded-lg border transition-colors ${
-                                  doc.status === "ready" 
-                                    ? "bg-green-500/10 border-green-500/20" 
-                                    : doc.status === "error"
-                                    ? "bg-destructive/10 border-destructive/20"
-                                    : "bg-primary/10 border-primary/20"
-                                }`}
-                              >
-                                {doc.status === "processing" || doc.status === "uploading" ? (
-                                  <Loader2 className="w-3 h-3 text-primary animate-spin" />
-                                ) : doc.status === "ready" ? (
-                                  <FileCheck className="w-3 h-3 text-green-500" />
-                                ) : (
-                                  <FileText className="w-3 h-3 text-destructive" />
-                                )}
-                                <span className={`text-xs truncate max-w-[80px] ${
-                                  doc.status === "ready" 
-                                    ? "text-green-600 dark:text-green-400" 
-                                    : doc.status === "error"
-                                    ? "text-destructive"
-                                    : "text-primary"
-                                }`}>
-                                  {doc.fileName}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={() => removeDocument(doc.jobId)}
-                                  className="ml-0.5 p-0.5 hover:bg-muted rounded transition-colors"
-                                  title="Remove file"
-                                >
-                                  <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
+                    <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-3">
+                      <button
+                        type="button"
+                        onClick={() => documentInputRef.current?.click()}
+                        disabled={isUploadingDoc}
+                        className="p-2 hover:bg-muted rounded-lg transition-colors flex items-center justify-center disabled:opacity-50 shrink-0"
+                        title="Upload PDF or PPTX (multiple files supported)"
+                      >
+                        {isUploadingDoc ? (
+                          <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
+                        ) : (
+                          <Upload className="w-4 h-4 text-muted-foreground" />
                         )}
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          type="button"
-                          onClick={handleChatMessage}
-                          disabled={!chatInput.trim() || isLoading}
-                          className={cn(
-                            "px-2 py-2 rounded-lg text-sm transition-colors border flex items-center justify-center",
-                            chatInput.trim() && !isLoading
-                              ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
-                              : "text-muted-foreground border-border bg-muted"
-                          )}
-                        >
-                          {isLoading ? (
-                            <Square className="w-4 h-4" />
-                          ) : (
-                            <Send className="w-4 h-4" />
-                          )}
-                          <span className="sr-only">Send</span>
-                        </button>
-                      </div>
+                      </button>
+                      
+                      {uploadedDocuments.length > 0 && (
+                        <div className="flex items-center gap-1.5 flex-1 overflow-x-auto">
+                          {uploadedDocuments.map((doc) => (
+                            <div 
+                              key={doc.jobId}
+                              className={`flex items-center gap-1 px-2 py-1 rounded-lg border transition-colors shrink-0 ${
+                                doc.status === "ready" 
+                                  ? "bg-green-500/10 border-green-500/20" 
+                                  : doc.status === "error"
+                                  ? "bg-destructive/10 border-destructive/20"
+                                  : "bg-primary/10 border-primary/20"
+                              }`}
+                            >
+                              {doc.status === "processing" || doc.status === "uploading" ? (
+                                <Loader2 className="w-3 h-3 text-primary animate-spin" />
+                              ) : doc.status === "ready" ? (
+                                <FileCheck className="w-3 h-3 text-green-500" />
+                              ) : (
+                                <FileText className="w-3 h-3 text-destructive" />
+                              )}
+                              <span className={`text-xs truncate max-w-[80px] ${
+                                doc.status === "ready" 
+                                  ? "text-green-600 dark:text-green-400" 
+                                  : doc.status === "error"
+                                  ? "text-destructive"
+                                  : "text-primary"
+                              }`}>
+                                {doc.fileName}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => removeDocument(doc.jobId)}
+                                className="ml-0.5 p-0.5 hover:bg-muted rounded transition-colors"
+                                title="Remove file"
+                              >
+                                <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      <button
+                        type="button"
+                        onClick={handleChatMessage}
+                        disabled={!chatInput.trim() || isLoading}
+                        className={cn(
+                          "p-2 rounded-lg text-sm transition-colors flex items-center justify-center shrink-0 ml-auto",
+                          chatInput.trim() && !isLoading
+                            ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                            : "text-muted-foreground bg-muted"
+                        )}
+                      >
+                        {isLoading ? (
+                          <Square className="w-4 h-4" />
+                        ) : (
+                          <Send className="w-4 h-4" />
+                        )}
+                        <span className="sr-only">Send</span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1174,7 +1167,7 @@ ${msg}
                 className="absolute inset-0 flex flex-col bg-background"
               >
                 {/* Chat Messages Area - Fills remaining space above input */}
-                <div className="flex-1 p-4 md:p-6 overflow-y-auto scroll-smooth">
+                <div className={cn("flex-1 p-4 md:p-6 overflow-y-auto scroll-smooth", isDockNav ? "pb-48" : "pb-40")}>
                   <div className="max-w-4xl mx-auto space-y-4 md:space-y-6">
                     {messages
                       .filter(msg => !msg.summaryType)
@@ -1249,130 +1242,122 @@ ${msg}
                   </div>
                 </div>
                 
-                {/* Chat Input Area - Sticky Bottom */}
-                <div className="sticky bottom-0 flex-shrink-0 p-4 md:p-6 border-t border-border bg-background/95 backdrop-blur-md z-20">
+                {/* Chat Input Area - Fixed Bottom */}
+                <div className={cn(
+                  "fixed left-0 right-0 p-4 md:p-6 bg-background/95 backdrop-blur-md z-20",
+                  isDockNav ? "bottom-20" : "bottom-0"
+                )}>
                   <div className="max-w-4xl mx-auto">
-                    <div className="relative bg-card rounded-xl border border-border shadow-lg transition-all duration-300 hover:shadow-xl">
-                      <div className="overflow-y-auto">
-                        <Textarea
-                          value={chatInput}
-                          onChange={(e) => setChatInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault();
-                              if (chatInput.trim() && !isLoading) {
-                                handleChatMessage();
-                              }
+                    <div className="relative bg-card rounded-xl border border-border shadow-lg">
+                      <Textarea
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            if (chatInput.trim() && !isLoading) {
+                              handleChatMessage();
+                            }
+                          }
+                        }}
+                        placeholder="Ask anything..."
+                        disabled={isLoading}
+                        className={cn(
+                          "w-full px-4 pt-4 pb-14",
+                          "resize-none",
+                          "bg-transparent",
+                          "border-none",
+                          "text-foreground text-sm",
+                          "focus:outline-none",
+                          "focus-visible:ring-0 focus-visible:ring-offset-0",
+                          "placeholder:text-muted-foreground placeholder:text-sm",
+                          "min-h-[80px] max-h-[200px]"
+                        )}
+                      />
+
+                      <div className="absolute bottom-0 left-0 right-0 flex items-center justify-between px-3 py-3">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (documentInputRef.current) {
+                              documentInputRef.current.click();
                             }
                           }}
-                          placeholder="Ask anything..."
-                          disabled={isLoading}
-                          className={cn(
-                            "w-full px-4 py-3",
-                            "resize-none",
-                            "bg-transparent",
-                            "border-none",
-                            "text-foreground text-sm",
-                            "focus:outline-none",
-                            "focus-visible:ring-0 focus-visible:ring-offset-0",
-                            "placeholder:text-muted-foreground placeholder:text-sm",
-                            "min-h-[60px] max-h-[200px]"
+                          disabled={isUploadingDoc}
+                          className="p-2 hover:bg-muted rounded-lg transition-colors flex items-center justify-center disabled:opacity-50 cursor-pointer shrink-0"
+                          title="Upload PDF or PPTX (multiple files supported)"
+                        >
+                          {isUploadingDoc ? (
+                            <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
+                          ) : (
+                            <Upload className="w-4 h-4 text-muted-foreground" />
                           )}
-                          style={{ overflow: "hidden" }}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 border-t border-border">
-                        <div className="flex items-center gap-2 flex-wrap flex-1 min-w-0">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              console.log('Upload button clicked, ref:', documentInputRef.current);
-                              if (documentInputRef.current) {
-                                documentInputRef.current.click();
-                              } else {
-                                console.error('documentInputRef is null!');
-                              }
-                            }}
-                            disabled={isUploadingDoc}
-                            className="group p-2 hover:bg-muted rounded-lg transition-colors flex items-center gap-1 disabled:opacity-50 cursor-pointer shrink-0"
-                            title="Upload PDF, PPTX, or XLSX (multiple files supported)"
-                          >
-                            {isUploadingDoc ? (
-                              <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />
-                            ) : (
-                              <Upload className="w-4 h-4 text-muted-foreground" />
-                            )}
-                            <span className="text-xs text-muted-foreground hidden group-hover:inline transition-opacity">
-                              {isUploadingDoc ? "Uploading..." : "Attach Files"}
-                            </span>
-                          </button>
-                          {uploadedDocuments.length > 0 && (
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              {uploadedDocuments.map((doc) => (
-                                <div 
-                                  key={doc.jobId}
-                                  className={`flex items-center gap-1 px-2 py-1 rounded-lg border transition-colors ${
-                                    doc.status === "ready" 
-                                      ? "bg-green-500/10 border-green-500/20" 
-                                      : doc.status === "error"
-                                      ? "bg-destructive/10 border-destructive/20"
-                                      : "bg-primary/10 border-primary/20"
-                                  }`}
+                        </button>
+                        
+                        {uploadedDocuments.length > 0 && (
+                          <div className="flex items-center gap-1.5 flex-1 mx-2 overflow-x-auto">
+                            {uploadedDocuments.map((doc) => (
+                              <div 
+                                key={doc.jobId}
+                                className={`flex items-center gap-1 px-2 py-1 rounded-lg border transition-colors shrink-0 ${
+                                  doc.status === "ready" 
+                                    ? "bg-green-500/10 border-green-500/20" 
+                                    : doc.status === "error"
+                                    ? "bg-destructive/10 border-destructive/20"
+                                    : "bg-primary/10 border-primary/20"
+                                }`}
+                              >
+                                {doc.status === "processing" || doc.status === "uploading" ? (
+                                  <Loader2 className="w-3 h-3 text-primary animate-spin" />
+                                ) : doc.status === "ready" ? (
+                                  <FileCheck className="w-3 h-3 text-green-500" />
+                                ) : (
+                                  <FileText className="w-3 h-3 text-destructive" />
+                                )}
+                                <span className={`text-xs truncate max-w-[80px] ${
+                                  doc.status === "ready" 
+                                    ? "text-green-600 dark:text-green-400" 
+                                    : doc.status === "error"
+                                    ? "text-destructive"
+                                    : "text-primary"
+                                }`}>
+                                  {doc.fileName}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeDocument(doc.jobId)}
+                                  className="ml-0.5 p-0.5 hover:bg-muted rounded transition-colors"
+                                  title="Remove file"
                                 >
-                                  {doc.status === "processing" || doc.status === "uploading" ? (
-                                    <Loader2 className="w-3 h-3 text-primary animate-spin" />
-                                  ) : doc.status === "ready" ? (
-                                    <FileCheck className="w-3 h-3 text-green-500" />
-                                  ) : (
-                                    <FileText className="w-3 h-3 text-destructive" />
-                                  )}
-                                  <span className={`text-xs truncate max-w-[80px] ${
-                                    doc.status === "ready" 
-                                      ? "text-green-600 dark:text-green-400" 
-                                      : doc.status === "error"
-                                      ? "text-destructive"
-                                      : "text-primary"
-                                  }`}>
-                                    {doc.fileName}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => removeDocument(doc.jobId)}
-                                    className="ml-0.5 p-0.5 hover:bg-muted rounded transition-colors"
-                                    title="Remove file"
-                                  >
-                                    <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
+                                  <X className="w-3 h-3 text-muted-foreground hover:text-foreground" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        
+                        <button
+                          type="button"
+                          onClick={isLoading ? stopResponse : handleChatMessage}
+                          disabled={!chatInput.trim() && !isLoading}
+                          className={cn(
+                            "p-2 rounded-lg text-sm transition-colors flex items-center justify-center shrink-0",
+                            chatInput.trim() && !isLoading
+                              ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                              : isLoading
+                              ? "bg-muted text-foreground hover:bg-muted/80"
+                              : "text-muted-foreground bg-muted"
                           )}
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={isLoading ? stopResponse : handleChatMessage}
-                            disabled={!chatInput.trim() && !isLoading}
-                            className={cn(
-                              "px-2 py-2 rounded-lg text-sm transition-colors border flex items-center justify-center",
-                              chatInput.trim() && !isLoading
-                                ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
-                                : isLoading
-                                ? "bg-muted text-foreground border-border hover:bg-muted/80"
-                                : "text-muted-foreground border-border bg-muted"
-                            )}
-                          >
-                            {isLoading ? (
-                              <Square className="w-4 h-4" />
-                            ) : (
-                              <Send className="w-4 h-4" />
-                            )}
-                            <span className="sr-only">{isLoading ? 'Stop' : 'Send'}</span>
-                          </button>
-                        </div>
+                        >
+                          {isLoading ? (
+                            <Square className="w-4 h-4" />
+                          ) : (
+                            <Send className="w-4 h-4" />
+                          )}
+                          <span className="sr-only">{isLoading ? 'Stop' : 'Send'}</span>
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -1556,7 +1541,7 @@ ${msg}
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".txt,.pdf,.pptx,.xlsx"
+                      accept=".txt,.pdf,.pptx"
                       onChange={handleFileUpload}
                       className="hidden"
                     />
@@ -1567,7 +1552,7 @@ ${msg}
                       className="w-full"
                     >
                       <Upload className="h-4 w-4 mr-2" />
-                      Upload Document (PDF/PPTX/XLSX/TXT)
+                      Upload Document (PDF/PPTX/TXT)
                     </Button>
                   </div>
                 </CardContent>

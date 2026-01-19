@@ -160,13 +160,6 @@ export default function CourseGrades() {
   useEffect(() => {
     const fetchData = async () => {
       if (cycleNumber && cycleNumber > 0) {
-        // Check cache first
-        const cached = cycleGradesCache.get(cycleNumber);
-        if (cached) {
-          setCycleGrades(cached);
-          return;
-        }
-        
         setLoadingCycle(true);
         try {
           const data = await fetchGradesForCycle(cycleNumber);
@@ -174,18 +167,37 @@ export default function CourseGrades() {
         } finally {
           setLoadingCycle(false);
         }
+      } else {
+        // Reset cycle grades if no cycle number
+        setCycleGrades(null);
       }
     };
     fetchData();
-  }, [cycleNumber, cycleGradesCache, fetchGradesForCycle]);
+  }, [cycleNumber, fetchGradesForCycle]);
   
-  // Determine which data source to use
-  const dataSource = cycleNumber ? cycleGrades : gradesData;
+  // Determine which data source to use - be explicit
+  const dataSource = useMemo(() => {
+    if (cycleNumber && cycleNumber > 0) {
+      return cycleGrades;
+    }
+    return gradesData;
+  }, [cycleNumber, cycleGrades, gradesData]);
   
-  // Find the course
+  // Find the course - match by courseId first, then by course code in name
   const course = useMemo(() => {
     if (!dataSource || !courseId) return null;
-    return dataSource.grades.find(c => c.courseId === courseId);
+    
+    // First try exact courseId match
+    let found = dataSource.grades.find(c => c.courseId === courseId);
+    
+    // If not found and we have a course code, try matching by course code in the name
+    if (!found) {
+      found = dataSource.grades.find(c => 
+        c.name.includes(courseId) || c.courseId.includes(courseId)
+      );
+    }
+    
+    return found || null;
   }, [dataSource, courseId]);
 
   // Calculate category averages
@@ -233,7 +245,11 @@ export default function CourseGrades() {
     return averages;
   }, [course]);
 
-  if (isLoading || loadingCycle) {
+  // Show loading only when we're actively fetching and don't have data yet
+  const shouldShowLoading = (cycleNumber && loadingCycle && !cycleGrades) || 
+                           (!cycleNumber && isLoading && !gradesData);
+  
+  if (shouldShowLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

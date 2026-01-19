@@ -91,7 +91,6 @@ export default defineConfig({
       '@tiptap/extension-placeholder',
       '@tiptap/extension-text-style',
       '@tiptap/extension-font-family',
-      'fast-deep-equal',
     ],
   },
 });

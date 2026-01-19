@@ -9,11 +9,6 @@ export const PROCESSING_LIMITS: DocumentProcessingLimits = {
     maxSlides: 75,
     maxBytes: 40 * 1024 * 1024,
   },
-  xlsx: {
-    maxCells: 50_000,
-    maxWorksheets: 20,
-    maxBytes: 30 * 1024 * 1024,
-  },
 };
 
 export const EPHEMERAL_KEY_TTL_MS = 3 * 60 * 1000; // 3 minutes

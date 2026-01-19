@@ -7,7 +7,6 @@ import { ephemeralStore } from "./ephemeral-store";
 import { processingQueue } from "./queue";
 import { parsePdf } from "./parsers/pdfParser";
 import { parsePptx } from "./parsers/pptxParser";
-import { parseXlsx } from "./parsers/xlsxParser";
 import { EPHEMERAL_KEY_TTL_MS, JOB_EXPIRATION_MS, PROCESSING_LIMITS } from "./config";
 import type {
   DocumentKind,
@@ -48,7 +47,6 @@ export class DocumentProcessingService extends EventEmitter {
     super();
     processingQueue.registerProcessor("pdf", (job) => this.handleJob(job));
     processingQueue.registerProcessor("pptx", (job) => this.handleJob(job));
-    processingQueue.registerProcessor("xlsx", (job) => this.handleJob(job));
   }
 
   bindUploadRoute(app: ExpressApp): void {
@@ -169,12 +167,7 @@ export class DocumentProcessingService extends EventEmitter {
       normalized.endsWith(".pptx")
     )
       return "pptx";
-    if (
-      mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-      normalized.endsWith(".xlsx")
-    )
-      return "xlsx";
-    throw new Error("Unsupported document type. Please upload a PDF, PPTX, or XLSX file.");
+    throw new Error("Unsupported document type. Please upload a PDF or PPTX file.");
   }
 
   private validateFile(kind: DocumentKind, byteSize: number): void {
@@ -236,14 +229,6 @@ export class DocumentProcessingService extends EventEmitter {
         throw new Error("Presentation exceeds 75 slides. Please split and retry.");
       }
 
-      if (
-        job.kind === "xlsx" &&
-        parsed.metadata.worksheetCount &&
-        parsed.metadata.worksheetCount > PROCESSING_LIMITS.xlsx.maxWorksheets
-      ) {
-        throw new Error("Spreadsheet exceeds worksheet limit. Please reduce the sheet count and retry.");
-      }
-
       await updatePhase("completed", "Document ready for chat!", 100);
 
       // Format and store content for chat access (30 minute expiry)
@@ -303,8 +288,6 @@ export class DocumentProcessingService extends EventEmitter {
         return parsePdf(buffer);
       case "pptx":
         return parsePptx(buffer);
-      case "xlsx":
-        return parseXlsx(buffer);
       default:
         throw new Error("Unsupported document type");
     }

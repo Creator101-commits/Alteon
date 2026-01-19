@@ -699,7 +699,7 @@ export default function GPACalculator() {
                             
                             <div className="text-right w-16">
                               <p className={cn("font-bold text-sm", getGradeColor(course.grade))}>
-                                {course.grade}%
+                                {course.grade.toFixed(2)}%
                               </p>
                               <p className="text-xs text-muted-foreground">
                                 {course.gpaPoints.toFixed(2)}

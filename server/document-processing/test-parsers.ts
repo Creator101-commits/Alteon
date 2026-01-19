@@ -6,7 +6,6 @@
 
 import { parsePdf } from "./parsers/pdfParser";
 import { parsePptx } from "./parsers/pptxParser";
-import { parseXlsx } from "./parsers/xlsxParser";
 
 async function testParsers() {
   console.log("🧪 Testing Document Parsers...\n");
@@ -19,12 +18,8 @@ async function testParsers() {
   console.log("2. PPTX Parser:");
   console.log("   ✓ parsePptx function exists:", typeof parsePptx === "function");
 
-  // Test 3: Check XLSX parser exports
-  console.log("3. XLSX Parser:");
-  console.log("   ✓ parseXlsx function exists:", typeof parseXlsx === "function");
-
-  // Test 4: Test with minimal buffers (will fail but shows structure)
-  console.log("\n4. Testing with minimal buffers:");
+  // Test 3: Test with minimal buffers (will fail but shows structure)
+  console.log("\n3. Testing with minimal buffers:");
   
   try {
     console.log("   Testing PDF parser with empty buffer...");
@@ -38,13 +33,6 @@ async function testParsers() {
     await parsePptx(Buffer.from(""));
   } catch (error) {
     console.log("   ✓ PPTX parser throws expected error:", (error as Error).message.slice(0, 50));
-  }
-
-  try {
-    console.log("   Testing XLSX parser with empty buffer...");
-    await parseXlsx(Buffer.from(""));
-  } catch (error) {
-    console.log("   ✓ XLSX parser throws expected error:", (error as Error).message.slice(0, 50));
   }
 
   console.log("\n✅ All parsers loaded successfully!");
