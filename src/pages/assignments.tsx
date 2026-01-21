@@ -638,17 +638,33 @@ export default function Assignments() {
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    {assignment.isCustom && (
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => markAssignmentComplete(assignment.id)}
-                        className="flex items-center gap-2 hover:bg-green-50 hover:text-green-600 hover:border-green-300"
-                      >
-                        <Check className="h-4 w-4" />
-                        Complete
-                      </Button>
-                    )}
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={async () => {
+                        await markAssignmentComplete(assignment.id);
+                        window.location.reload(); // Force immediate refresh
+                      }}
+                      className="flex items-center gap-2 hover:bg-green-50 hover:text-green-600 hover:border-green-300"
+                      title="Mark as complete and remove"
+                    >
+                      <Check className="h-4 w-4" />
+                      Complete
+                    </Button>
+                    
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={async () => {
+                        await deleteCustomAssignment(assignment.id);
+                        window.location.reload(); // Force immediate refresh
+                      }}
+                      className="flex items-center gap-2 hover:bg-red-50 hover:text-red-600 hover:border-red-300"
+                      title="Delete assignment"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete
+                    </Button>
                     
                     {assignment.alternateLink && (
                       <Button 

@@ -12,12 +12,12 @@ async function fetchTranscript(videoId: string): Promise<string> {
       );
       
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json() as { events?: Array<{ segs?: Array<{ utf8: string }> }> };
         if (data.events) {
           return data.events
-            .filter((event: any) => event.segs)
-            .map((event: any) => 
-              event.segs.map((seg: any) => seg.utf8).join('')
+            .filter((event) => event.segs)
+            .map((event) => 
+              event.segs!.map((seg) => seg.utf8).join('')
             )
             .join(' ')
             .replace(/\s+/g, ' ')

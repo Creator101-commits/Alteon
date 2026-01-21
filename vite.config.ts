@@ -110,11 +110,10 @@ export default defineConfig({
       'wouter',
       'clsx',
       'date-fns',
+      // Fix dayjs ESM compatibility (used by mermaid)
+      'dayjs',
     ],
-    // Exclude heavy deps from pre-bundling (load on demand)
-    exclude: [
-      'mermaid',
-    ],
+    // Note: mermaid is heavy but needs to be bundled for dayjs compatibility
   },
   // Enable caching for faster rebuilds
   cacheDir: 'node_modules/.vite',
