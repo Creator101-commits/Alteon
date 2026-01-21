@@ -5,11 +5,6 @@
 .env.test.local
 .env.production.local
 
-# Oracle wallet - INCLUDED for Railway deployment (private repo only)
-# If this repo becomes public, move wallet files to Railway secrets
-server/oracle_wallet.zip
-server/migrations/*.csv
-
 # Dependencies
 node_modules/
 npm-debug.log*
@@ -19,6 +14,9 @@ yarn-error.log*
 # Production build
 dist/
 build/
+
+# Test directories
+testsprite_tests/
 
 # Editor files
 .vscode/
