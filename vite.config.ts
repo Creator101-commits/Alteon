@@ -1,10 +1,23 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
+import viteCompression from "vite-plugin-compression";
 
 export default defineConfig({
   plugins: [
     react(),
+    // Brotli compression for smaller network transfers (70-80% reduction)
+    viteCompression({
+      algorithm: 'brotliCompress',
+      ext: '.br',
+      threshold: 1024, // Only compress files > 1KB
+    }),
+    // Gzip fallback for browsers without Brotli support
+    viteCompression({
+      algorithm: 'gzip',
+      ext: '.gz',
+      threshold: 1024,
+    }),
   ],
   resolve: {
     alias: {
@@ -25,14 +38,21 @@ export default defineConfig({
       compress: {
         drop_console: true,
         drop_debugger: true,
+        pure_funcs: ['console.log', 'console.debug', 'console.info'],
       },
     },
+    // Enable source maps only in development
+    sourcemap: false,
     rollupOptions: {
       output: {
         // Enhanced code splitting for better caching and smaller initial bundle
         manualChunks: {
           // Core React - always needed
           'vendor-react': ['react', 'react-dom'],
+          // Routing
+          'vendor-router': ['wouter'],
+          // React Query - data fetching
+          'vendor-query': ['@tanstack/react-query'],
           // UI components - loaded with main app
           'vendor-ui': [
             '@radix-ui/react-dialog', 
@@ -41,6 +61,7 @@ export default defineConfig({
             '@radix-ui/react-popover',
             '@radix-ui/react-select',
             '@radix-ui/react-tabs',
+            '@radix-ui/react-tooltip',
           ],
           // Charts - only loaded on analytics/dashboard pages
           'vendor-charts': ['recharts'],
@@ -54,15 +75,24 @@ export default defineConfig({
           'vendor-firebase': ['firebase/app', 'firebase/auth'],
           // Heavy visualization libraries - lazy loaded
           'vendor-mermaid': ['mermaid'],
+          // Supabase client
+          'vendor-supabase': ['@supabase/supabase-js'],
+          // Animation
+          'vendor-animation': ['framer-motion'],
         },
         // Optimize chunk names for caching
-        chunkFileNames: 'assets/[name]-[hash].js',
+        chunkFileNames: (chunkInfo) => {
+          // Use content hash for better caching
+          return 'assets/[name]-[hash].js';
+        },
         entryFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash].[ext]',
       },
     },
     // Increase chunk size warning limit
     chunkSizeWarningLimit: 500,
+    // CSS code splitting
+    cssCodeSplit: true,
   },
   server: {
     fs: {
@@ -76,15 +106,16 @@ export default defineConfig({
       'react',
       'react-dom',
       '@tanstack/react-query',
-      'framer-motion',
       'lucide-react',
-      '@tiptap/react',
-      '@tiptap/starter-kit',
-      '@tiptap/extension-underline',
-      '@tiptap/extension-text-align',
-      '@tiptap/extension-placeholder',
-      '@tiptap/extension-text-style',
-      '@tiptap/extension-font-family',
+      'wouter',
+      'clsx',
+      'date-fns',
+    ],
+    // Exclude heavy deps from pre-bundling (load on demand)
+    exclude: [
+      'mermaid',
     ],
   },
+  // Enable caching for faster rebuilds
+  cacheDir: 'node_modules/.vite',
 });

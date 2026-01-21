@@ -3,8 +3,33 @@ import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 
+// Web Vitals monitoring for performance tracking
+// Reports Core Web Vitals: CLS, FID, FCP, LCP, TTFB
+const reportWebVitals = async () => {
+  if (import.meta.env.PROD) {
+    const { onCLS, onFCP, onFID, onLCP, onTTFB } = await import('web-vitals');
+    
+    const logVital = (metric: { name: string; value: number; rating: string }) => {
+      // Log to console in a compact format
+      console.log(`[Vitals] ${metric.name}: ${Math.round(metric.value)}ms (${metric.rating})`);
+      
+      // You can send to analytics here:
+      // analytics.track('web_vital', metric);
+    };
+    
+    onCLS(logVital);
+    onFCP(logVital);
+    onFID(logVital);
+    onLCP(logVital);
+    onTTFB(logVital);
+  }
+};
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>
 );
+
+// Initialize web vitals reporting
+reportWebVitals();
