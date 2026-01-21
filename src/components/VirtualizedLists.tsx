@@ -1,23 +1,13 @@
 /**
  * Virtualized list components for handling large data sets efficiently
- * Uses react-window for windowed rendering - only renders visible items
+ * Uses CSS-based virtualization with overflow scrolling for smooth performance
  */
 
 import React, { memo, useCallback, CSSProperties } from 'react';
-import { FixedSizeList as List, areEqual } from 'react-window';
-import AutoSizer from 'react-virtualized-auto-sizer';
 
 // ============================================
 // TYPES
 // ============================================
-
-export interface VirtualizedListProps<T> {
-  items: T[];
-  itemHeight: number;
-  renderItem: (item: T, index: number, style: CSSProperties) => React.ReactNode;
-  className?: string;
-  overscanCount?: number;
-}
 
 export interface NoteItem {
   id: string;
@@ -39,62 +29,47 @@ export interface AssignmentItem {
   classId?: string;
 }
 
-// ============================================
-// GENERIC VIRTUALIZED LIST
-// ============================================
-
-interface RowProps<T> {
-  index: number;
-  style: CSSProperties;
-  data: {
-    items: T[];
-    renderItem: (item: T, index: number, style: CSSProperties) => React.ReactNode;
-  };
+export interface FlashcardItem {
+  id: string;
+  front: string;
+  back: string;
+  deckId: string;
+  nextReviewDate?: string;
+  difficulty?: number;
 }
 
-const Row = memo(<T,>({ index, style, data }: RowProps<T>) => {
-  const { items, renderItem } = data;
-  return <>{renderItem(items[index], index, style)}</>;
-}, areEqual);
+// ============================================
+// SIMPLE SCROLLABLE LIST
+// CSS-based virtualization with native scrolling
+// ============================================
 
-export function VirtualizedList<T>({
+export function ScrollableList<T>({
   items,
-  itemHeight,
   renderItem,
   className = '',
-  overscanCount = 5,
-}: VirtualizedListProps<T>) {
-  const itemData = { items, renderItem };
-
+  maxHeight = 600,
+  emptyMessage = 'No items',
+}: {
+  items: T[];
+  renderItem: (item: T, index: number) => React.ReactNode;
+  className?: string;
+  maxHeight?: number;
+  emptyMessage?: string;
+}) {
   if (items.length === 0) {
-    return null;
-  }
-
-  // For small lists, don't virtualize
-  if (items.length < 20) {
     return (
-      <div className={className}>
-        {items.map((item, index) => renderItem(item, index, {}))}
+      <div className={`text-center py-8 text-muted-foreground ${className}`}>
+        {emptyMessage}
       </div>
     );
   }
 
   return (
-    <div className={className} style={{ height: '100%', minHeight: 400 }}>
-      <AutoSizer>
-        {({ height, width }: { height: number; width: number }) => (
-          <List
-            height={height}
-            width={width}
-            itemCount={items.length}
-            itemSize={itemHeight}
-            itemData={itemData}
-            overscanCount={overscanCount}
-          >
-            {Row as any}
-          </List>
-        )}
-      </AutoSizer>
+    <div 
+      className={`overflow-y-auto ${className}`} 
+      style={{ maxHeight }}
+    >
+      {items.map((item, index) => renderItem(item, index))}
     </div>
   );
 }
@@ -108,6 +83,7 @@ interface VirtualizedNotesListProps {
   onNoteClick: (noteId: string) => void;
   onNoteDelete?: (noteId: string) => void;
   selectedNoteId?: string;
+  maxHeight?: number;
 }
 
 export const VirtualizedNotesList = memo(({
@@ -115,11 +91,11 @@ export const VirtualizedNotesList = memo(({
   onNoteClick,
   onNoteDelete,
   selectedNoteId,
+  maxHeight = 600,
 }: VirtualizedNotesListProps) => {
-  const renderNote = useCallback((note: NoteItem, _index: number, style: CSSProperties) => (
+  const renderNote = useCallback((note: NoteItem, _index: number) => (
     <div
       key={note.id}
-      style={style}
       className={`p-3 border-b cursor-pointer hover:bg-muted/50 transition-colors ${
         selectedNoteId === note.id ? 'bg-muted' : ''
       }`}
@@ -156,10 +132,11 @@ export const VirtualizedNotesList = memo(({
   ), [onNoteClick, onNoteDelete, selectedNoteId]);
 
   return (
-    <VirtualizedList
+    <ScrollableList
       items={notes}
-      itemHeight={80}
       renderItem={renderNote}
+      maxHeight={maxHeight}
+      emptyMessage="No notes yet"
     />
   );
 });
@@ -187,17 +164,18 @@ interface VirtualizedAssignmentsListProps {
   assignments: AssignmentItem[];
   onAssignmentClick: (assignmentId: string) => void;
   onStatusChange?: (assignmentId: string, status: AssignmentItem['status']) => void;
+  maxHeight?: number;
 }
 
 export const VirtualizedAssignmentsList = memo(({
   assignments,
   onAssignmentClick,
   onStatusChange,
+  maxHeight = 600,
 }: VirtualizedAssignmentsListProps) => {
-  const renderAssignment = useCallback((assignment: AssignmentItem, _index: number, style: CSSProperties) => (
+  const renderAssignment = useCallback((assignment: AssignmentItem, _index: number) => (
     <div
       key={assignment.id}
-      style={style}
       className="p-3 border-b cursor-pointer hover:bg-muted/50 transition-colors"
       onClick={() => onAssignmentClick(assignment.id)}
     >
@@ -238,10 +216,11 @@ export const VirtualizedAssignmentsList = memo(({
   ), [onAssignmentClick, onStatusChange]);
 
   return (
-    <VirtualizedList
+    <ScrollableList
       items={assignments}
-      itemHeight={90}
       renderItem={renderAssignment}
+      maxHeight={maxHeight}
+      emptyMessage="No assignments yet"
     />
   );
 });
@@ -252,30 +231,22 @@ VirtualizedAssignmentsList.displayName = 'VirtualizedAssignmentsList';
 // FLASHCARD LIST
 // ============================================
 
-export interface FlashcardItem {
-  id: string;
-  front: string;
-  back: string;
-  deckId: string;
-  nextReviewDate?: string;
-  difficulty?: number;
-}
-
 interface VirtualizedFlashcardsListProps {
   flashcards: FlashcardItem[];
   onFlashcardClick: (flashcardId: string) => void;
   onFlashcardDelete?: (flashcardId: string) => void;
+  maxHeight?: number;
 }
 
 export const VirtualizedFlashcardsList = memo(({
   flashcards,
   onFlashcardClick,
   onFlashcardDelete,
+  maxHeight = 600,
 }: VirtualizedFlashcardsListProps) => {
-  const renderFlashcard = useCallback((card: FlashcardItem, _index: number, style: CSSProperties) => (
+  const renderFlashcard = useCallback((card: FlashcardItem, _index: number) => (
     <div
       key={card.id}
-      style={style}
       className="p-3 border-b cursor-pointer hover:bg-muted/50 transition-colors"
       onClick={() => onFlashcardClick(card.id)}
     >
@@ -305,10 +276,11 @@ export const VirtualizedFlashcardsList = memo(({
   ), [onFlashcardClick, onFlashcardDelete]);
 
   return (
-    <VirtualizedList
+    <ScrollableList
       items={flashcards}
-      itemHeight={80}
       renderItem={renderFlashcard}
+      maxHeight={maxHeight}
+      emptyMessage="No flashcards yet"
     />
   );
 });

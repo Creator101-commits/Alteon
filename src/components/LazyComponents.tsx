@@ -91,21 +91,13 @@ export const LazyMermaidRenderer = lazy(() =>
 
 // ============================================
 // VIRTUALIZED LIST COMPONENTS
-// For handling large lists efficiently
+// Note: VirtualizedLists exports named components, import directly
+// import { VirtualizedNotesList, VirtualizedAssignmentsList } from '@/components/VirtualizedLists'
 // ============================================
-export const LazyVirtualizedList = lazy(() => 
-  import('react-window').then(m => ({
-    default: m.FixedSizeList
-  }))
-);
-
-export const LazyVariableSizeList = lazy(() => 
-  import('react-window').then(m => ({
-    default: m.VariableSizeList
-  }))
-);
 
 // ============================================
 // DATE PICKER (heavy calendar component)
 // ============================================
-export const LazyDateTimePicker = lazy(() => import('@/components/ui/date-time-picker'));
+export const LazyDateTimePicker = lazy(() => 
+  import('@/components/ui/date-time-picker').then(m => ({ default: m.DateTimePicker }))
+);
