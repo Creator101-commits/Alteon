@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiPost } from "@/lib/api";
+import { storage } from "@/lib/supabase-storage";
 import { PomodoroSession, InsertPomodoroSession } from "@shared/schema";
 import ElasticSlider from "@/components/ui/ElasticSlider";
 import {
@@ -111,17 +111,13 @@ export const PomodoroTimer = () => {
 
     try {
       const sessionData = {
+        userId: user.uid,
         type: sessionType,
         duration,
       };
 
-      const response = await apiPost(`/api/users/${user.uid}/pomodoro-sessions`, sessionData);
-      
-      if (response.ok) {
-        console.log('Pomodoro session saved to database');
-      } else {
-        console.error('Failed to save pomodoro session:', response.status);
-      }
+      await storage.createPomodoroSession(sessionData);
+      console.log('Pomodoro session saved to database');
     } catch (error) {
       console.error('Error saving pomodoro session:', error);
     }

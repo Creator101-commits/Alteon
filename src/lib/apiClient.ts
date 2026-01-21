@@ -2,8 +2,9 @@
  * API Client with automatic retry logic and error handling
  */
 
-// Use Railway backend in production, localhost for development
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+// Use relative URLs for Vercel serverless functions
+// In production, API routes are at /api/* on the same domain
+export const API_BASE_URL = '';
 
 /**
  * Helper function to get full API URL
@@ -16,7 +17,7 @@ export function getApiUrl(path: string): string {
   }
   // Ensure path starts with /
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return `${API_BASE_URL}${normalizedPath}`;
+  return normalizedPath; // No base URL needed for relative paths
 }
 
 interface RetryOptions {

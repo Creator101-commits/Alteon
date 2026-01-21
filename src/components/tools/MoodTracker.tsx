@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiGet, apiPost } from "@/lib/api";
+import { storage } from "@/lib/supabase-storage";
 import { MoodEntry, InsertMoodEntry } from "@shared/schema";
 import {
   Smile,
@@ -47,19 +47,9 @@ export const MoodTracker = () => {
     
     setIsLoading(true);
     try {
-      const response = await apiGet(`/api/users/${user.uid}/mood-entries`);
-      if (response.ok) {
-        const data = await response.json();
-        setMoodEntries(data);
-        console.log(' Loaded mood entries:', data.length);
-      } else {
-        console.error('Failed to load mood entries:', response.status);
-        toast({
-          title: "Error",
-          description: "Failed to load mood entries",
-          variant: "destructive",
-        });
-      }
+      const data = await storage.getMoodEntriesByUserId(user.uid);
+      setMoodEntries(data);
+      console.log(' Loaded mood entries:', data.length);
     } catch (error) {
       console.error('Error loading mood entries:', error);
       toast({
@@ -92,24 +82,19 @@ export const MoodTracker = () => {
 
     try {
       const moodData = {
+        userId: user.uid,
         mood: currentMood,
         notes: notes.trim(),
       };
 
-      const response = await apiPost(`/api/users/${user.uid}/mood-entries`, moodData);
+      const createdEntry = await storage.createMoodEntry(moodData);
+      setMoodEntries(prev => [...prev, createdEntry]);
+      setNotes("");
       
-      if (response.ok) {
-        const createdEntry = await response.json();
-        setMoodEntries(prev => [...prev, createdEntry]);
-        setNotes("");
-        
-        toast({
-          title: "Mood saved! ",
-          description: `Your ${moodConfig[currentMood as keyof typeof moodConfig].label.toLowerCase()} mood has been recorded`,
-        });
-      } else {
-        throw new Error('Failed to save mood entry');
-      }
+      toast({
+        title: "Mood saved! ",
+        description: `Your ${moodConfig[currentMood as keyof typeof moodConfig].label.toLowerCase()} mood has been recorded`,
+      });
     } catch (error) {
       console.error('Error saving mood entry:', error);
       toast({

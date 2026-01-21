@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiGet, apiDelete } from "@/lib/api";
+import { storage } from "@/lib/supabase-storage";
 import { AiSummary } from "@shared/schema";
 import {
   Bot,
@@ -37,19 +37,9 @@ export const AiSummaryHistory = () => {
     
     setIsLoading(true);
     try {
-      const response = await apiGet(`/api/users/${user.uid}/ai-summaries`);
-      if (response.ok) {
-        const data = await response.json();
-        setSummaries(data);
-        console.log(' Loaded AI summaries:', data.length);
-      } else {
-        console.error('Failed to load AI summaries:', response.status);
-        toast({
-          title: "Error",
-          description: "Failed to load AI summaries",
-          variant: "destructive",
-        });
-      }
+      const data = await storage.getAiSummariesByUserId(user.uid);
+      setSummaries(data);
+      console.log(' Loaded AI summaries:', data.length);
     } catch (error) {
       console.error('Error loading AI summaries:', error);
       toast({
@@ -70,9 +60,9 @@ export const AiSummaryHistory = () => {
   // Delete AI summary
   const deleteSummary = async (summaryId: string) => {
     try {
-      const response = await apiDelete(`/api/ai-summaries/${summaryId}`);
+      const success = await storage.deleteAiSummary(summaryId);
       
-      if (response.ok) {
+      if (success) {
         setSummaries(prev => prev.filter(s => s.id !== summaryId));
         if (selectedSummary?.id === summaryId) {
           setSelectedSummary(null);

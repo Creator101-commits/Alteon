@@ -9,7 +9,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
-import { apiGet, apiPost, apiPut, apiDelete } from '@/lib/api';
+import { storage } from '@/lib/supabase-storage';
+import { FlashcardDeck } from '@shared/schema';
 import { 
   Plus, 
   Folder, 
@@ -24,18 +25,6 @@ import {
   Hash,
   Brain
 } from 'lucide-react';
-
-interface FlashcardDeck {
-  id: string;
-  userId: string;
-  name: string;
-  description?: string;
-  parentDeckId?: string | null;
-  color: string;
-  sortOrder: number;
-  createdAt: string;
-  updatedAt: string;
-}
 
 interface DeckManagerProps {
   onDeckSelect?: (deckId: string) => void;
@@ -80,40 +69,11 @@ export default function DeckManager({ onDeckSelect, selectedDeckId, onStudyDeck 
     
     try {
       setLoading(true);
-      const response = await apiGet(`/api/users/${user.uid}/flashcard-decks`);
-      console.log(' Raw API response:', response);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const decks = await response.json() as FlashcardDeck[];
-      console.log(' Parsed decks:', decks);
-      
-      // Validate and sanitize deck data
-      const validDecks = decks.filter(deck => 
-        deck && 
-        typeof deck.id === 'string' && 
-        typeof deck.name === 'string' &&
-        typeof deck.userId === 'string'
-      ).map(deck => ({
-        id: deck.id,
-        userId: deck.userId,
-        name: deck.name || 'Untitled Deck',
-        description: deck.description || '',
-        parentDeckId: deck.parentDeckId || null,
-        color: deck.color || '#3b82f6',
-        sortOrder: deck.sortOrder || 0,
-        createdAt: deck.createdAt || new Date().toISOString(),
-        updatedAt: deck.updatedAt || new Date().toISOString()
-      }));
-      
-      console.log(' Valid decks:', validDecks);
-      setDecks(validDecks);
+      const decks = await storage.getFlashcardDecksByUserId(user.uid);
+      console.log(' Loaded decks:', decks);
+      setDecks(decks);
     } catch (error) {
       console.error('Failed to load decks:', error);
-      // Don't show error toast for missing endpoints - just log and continue
-      console.log('Deck management API not available - using empty state');
       setDecks([]);
     } finally {
       setLoading(false);
@@ -125,6 +85,7 @@ export default function DeckManager({ onDeckSelect, selectedDeckId, onStudyDeck 
 
     try {
       const deckData = {
+        userId: user.uid,
         name: newDeck.name.trim(),
         description: newDeck.description.trim() || null,
         parentDeckId: newDeck.parentDeckId || null,
@@ -132,13 +93,7 @@ export default function DeckManager({ onDeckSelect, selectedDeckId, onStudyDeck 
         sortOrder: 0
       };
 
-      const response = await apiPost(`/api/users/${user.uid}/flashcard-decks`, deckData);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const createdDeck = await response.json() as FlashcardDeck;
+      const createdDeck = await storage.createFlashcardDeck(deckData);
       setDecks(prev => [...prev, createdDeck]);
       
       toast({
@@ -151,8 +106,8 @@ export default function DeckManager({ onDeckSelect, selectedDeckId, onStudyDeck 
     } catch (error) {
       console.error('Failed to create deck:', error);
       toast({
-        title: "Feature Not Available",
-        description: "Deck management requires the Oracle database. Please ensure the database is properly configured.",
+        title: "Error",
+        description: "Failed to create deck",
         variant: "destructive",
       });
     }
@@ -160,24 +115,23 @@ export default function DeckManager({ onDeckSelect, selectedDeckId, onStudyDeck 
 
   const updateDeck = async (deckId: string, updates: Partial<FlashcardDeck>) => {
     try {
-      const response = await apiPut(`/api/flashcard-decks/${deckId}`, updates);
+      const updatedDeck = await storage.updateFlashcardDeck(deckId, updates);
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (updatedDeck) {
+        setDecks(prev => prev.map(deck => deck.id === deckId ? updatedDeck : deck));
+        
+        toast({
+          title: "Success",
+          description: "Deck updated successfully",
+        });
+      } else {
+        throw new Error('Failed to update deck');
       }
-      
-      const updatedDeck = await response.json() as FlashcardDeck;
-      setDecks(prev => prev.map(deck => deck.id === deckId ? updatedDeck : deck));
-      
-      toast({
-        title: "Success",
-        description: "Deck updated successfully",
-      });
     } catch (error) {
       console.error('Failed to update deck:', error);
       toast({
-        title: "Feature Not Available",
-        description: "Deck management requires the Oracle database. Please ensure the database is properly configured.",
+        title: "Error",
+        description: "Failed to update deck",
         variant: "destructive",
       });
     }
@@ -189,18 +143,22 @@ export default function DeckManager({ onDeckSelect, selectedDeckId, onStudyDeck 
     }
 
     try {
-      await apiDelete(`/api/flashcard-decks/${deckId}`);
-      setDecks(prev => prev.filter(deck => deck.id !== deckId));
-      
-      toast({
-        title: "Success",
-        description: "Deck deleted successfully",
-      });
+      const success = await storage.deleteFlashcardDeck(deckId);
+      if (success) {
+        setDecks(prev => prev.filter(deck => deck.id !== deckId));
+        
+        toast({
+          title: "Success",
+          description: "Deck deleted successfully",
+        });
+      } else {
+        throw new Error('Failed to delete deck');
+      }
     } catch (error) {
       console.error('Failed to delete deck:', error);
       toast({
-        title: "Feature Not Available",
-        description: "Deck management requires the Oracle database. Please ensure the database is properly configured.",
+        title: "Error",
+        description: "Failed to delete deck",
         variant: "destructive",
       });
     }
@@ -263,7 +221,7 @@ export default function DeckManager({ onDeckSelect, selectedDeckId, onStudyDeck 
           {/* Deck Icon */}
           <div
             className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-semibold"
-            style={{ backgroundColor: deck.color }}
+            style={{ backgroundColor: deck.color || '#3b82f6' }}
           >
             {hasSubDecks ? (
               isExpanded ? <FolderOpen className="h-4 w-4" /> : <Folder className="h-4 w-4" />
@@ -363,10 +321,10 @@ export default function DeckManager({ onDeckSelect, selectedDeckId, onStudyDeck 
           <div className="text-center py-8 text-muted-foreground">
             <Folder className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p className="font-medium">Deck Manager Unavailable</p>
-            <p className="text-sm">This feature requires the Oracle database to be properly configured.</p>
+            <p className="text-sm">This feature requires the Supabase database to be properly configured.</p>
             <div className="mt-4 p-3 bg-muted/50 rounded-lg text-xs">
               <p className="font-medium text-amber-600 dark:text-amber-400">Note:</p>
-              <p>Deck management will be available once the database migration is complete.</p>
+              <p>Deck management will be available once the database connection is established.</p>
             </div>
           </div>
         </CardContent>
@@ -490,10 +448,6 @@ export default function DeckManager({ onDeckSelect, selectedDeckId, onStudyDeck 
             <Folder className="h-12 w-12 mx-auto mb-4 opacity-50" />
             <p>No decks created yet</p>
             <p className="text-sm">Create your first deck to organize your flashcards</p>
-            <div className="mt-4 p-3 bg-muted/50 rounded-lg text-xs">
-              <p className="font-medium text-amber-600 dark:text-amber-400">Note:</p>
-              <p>Deck management requires the Oracle database to be properly configured.</p>
-            </div>
           </div>
         ) : (
           <div className="space-y-1">

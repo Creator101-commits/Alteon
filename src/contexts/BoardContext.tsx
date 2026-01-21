@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { supabaseStorage } from '@/lib/supabase-storage';
 import type { Board, TodoList, Card, Label } from '@shared/schema';
 
 interface BoardContextType {
@@ -60,32 +61,12 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const getAuthHeaders = useCallback(() => ({
-    'Content-Type': 'application/json',
-    'x-user-id': user?.uid || ''
-  }), [user?.uid]);
-
   // Fetch all boards
   const fetchBoards = useCallback(async () => {
     if (!user?.uid) return;
     
     try {
-      const response = await fetch('/api/boards', {
-        headers: getAuthHeaders()
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        // If tables don't exist yet, show friendly message
-        if (error.message?.includes('ORA-00942') || error.message?.includes('table or view does not exist')) {
-          console.warn('Todo board tables not found. Please run the SQL migration.');
-          setError('Todo board tables not found. Please ask your administrator to run the database migration.');
-          return;
-        }
-        throw new Error('Failed to fetch boards');
-      }
-      
-      const data = await response.json();
+      const data = await supabaseStorage.getBoardsForUser(user.uid);
       setBoards(data);
       
       // Set first board as active if none selected
@@ -95,85 +76,57 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (err) {
       const errorMessage = (err as Error).message;
       setError(errorMessage);
-      
-      // Only show toast for non-table-missing errors
-      if (!errorMessage.includes('table') && !errorMessage.includes('migration')) {
-        toast({
-          title: 'Error',
-          description: 'Failed to load boards',
-          variant: 'destructive'
-        });
-      }
+      toast({
+        title: 'Error',
+        description: 'Failed to load boards',
+        variant: 'destructive'
+      });
     }
-  }, [user?.uid, activeBoard, getAuthHeaders, toast]);
+  }, [user?.uid, activeBoard, toast]);
 
   // Fetch lists for active board
   const fetchLists = useCallback(async (boardId: string) => {
     try {
-      const response = await fetch(`/api/boards/${boardId}/lists`, {
-        headers: getAuthHeaders()
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch lists');
-      
-      const data = await response.json();
+      const data = await supabaseStorage.getListsForBoard(boardId);
       setLists(data);
     } catch (err) {
       console.error('Failed to fetch lists:', err);
     }
-  }, [getAuthHeaders]);
+  }, []);
 
   // Fetch cards for active board
   const fetchCards = useCallback(async (boardId: string) => {
     try {
-      const response = await fetch(`/api/cards?boardId=${boardId}`, {
-        headers: getAuthHeaders()
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch cards');
-      
-      const data = await response.json();
+      const data = await supabaseStorage.getCardsForBoard(boardId);
       setCards(data);
     } catch (err) {
       console.error('Failed to fetch cards:', err);
     }
-  }, [getAuthHeaders]);
+  }, []);
 
   // Fetch inbox cards
   const fetchInboxCards = useCallback(async () => {
     if (!user?.uid) return;
     
     try {
-      const response = await fetch('/api/cards/inbox', {
-        headers: getAuthHeaders()
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch inbox');
-      
-      const data = await response.json();
+      const data = await supabaseStorage.getInboxCards(user.uid);
       setInboxCards(data);
     } catch (err) {
       console.error('Failed to fetch inbox:', err);
     }
-  }, [user?.uid, getAuthHeaders]);
+  }, [user?.uid]);
 
   // Fetch labels
   const fetchLabels = useCallback(async () => {
     if (!user?.uid) return;
     
     try {
-      const response = await fetch('/api/labels', {
-        headers: getAuthHeaders()
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch labels');
-      
-      const data = await response.json();
+      const data = await supabaseStorage.getLabelsForUser(user.uid);
       setLabels(data);
     } catch (err) {
       console.error('Failed to fetch labels:', err);
     }
-  }, [user?.uid, getAuthHeaders]);
+  }, [user?.uid]);
 
   // Refresh all data
   const refreshData = useCallback(async () => {
@@ -195,16 +148,15 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Create board
   const createBoard = useCallback(async (title: string, background?: string) => {
+    if (!user?.uid) return;
+    
     try {
-      const response = await fetch('/api/boards', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ title, background, userId: user?.uid })
+      const newBoard = await supabaseStorage.createBoard({
+        userId: user.uid,
+        title,
+        background: background || null,
       });
       
-      if (!response.ok) throw new Error('Failed to create board');
-      
-      const newBoard = await response.json();
       setBoards(prev => [...prev, newBoard]);
       setActiveBoard(newBoard);
       
@@ -219,27 +171,21 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         variant: 'destructive'
       });
     }
-  }, [user?.uid, getAuthHeaders, toast]);
+  }, [user?.uid, toast]);
 
   // Update board
   const updateBoard = useCallback(async (id: string, updates: Partial<Board>) => {
     try {
-      const response = await fetch(`/api/boards/${id}`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(updates)
-      });
-      
-      if (!response.ok) throw new Error('Failed to update board');
-      
-      const updated = await response.json();
-      setBoards(prev => prev.map(b => b.id === id ? updated : b));
-      if (activeBoard?.id === id) setActiveBoard(updated);
-      
-      toast({
-        title: 'Success',
-        description: 'Board updated'
-      });
+      const updated = await supabaseStorage.updateBoard(id, updates);
+      if (updated) {
+        setBoards(prev => prev.map(b => b.id === id ? updated : b));
+        if (activeBoard?.id === id) setActiveBoard(updated);
+        
+        toast({
+          title: 'Success',
+          description: 'Board updated'
+        });
+      }
     } catch (err) {
       toast({
         title: 'Error',
@@ -247,27 +193,24 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         variant: 'destructive'
       });
     }
-  }, [activeBoard, getAuthHeaders, toast]);
+  }, [activeBoard, toast]);
 
   // Delete board
   const deleteBoard = useCallback(async (id: string) => {
     try {
-      const response = await fetch(`/api/boards/${id}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
+      const success = await supabaseStorage.deleteBoard(id);
       
-      if (!response.ok) throw new Error('Failed to delete board');
-      
-      setBoards(prev => prev.filter(b => b.id !== id));
-      if (activeBoard?.id === id) {
-        setActiveBoard(boards.length > 1 ? boards[0] : null);
+      if (success) {
+        setBoards(prev => prev.filter(b => b.id !== id));
+        if (activeBoard?.id === id) {
+          setActiveBoard(boards.length > 1 ? boards[0] : null);
+        }
+        
+        toast({
+          title: 'Success',
+          description: 'Board deleted'
+        });
       }
-      
-      toast({
-        title: 'Success',
-        description: 'Board deleted'
-      });
     } catch (err) {
       toast({
         title: 'Error',
@@ -275,21 +218,20 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         variant: 'destructive'
       });
     }
-  }, [activeBoard, boards, getAuthHeaders, toast]);
+  }, [activeBoard, boards, toast]);
 
   // Create list
   const createList = useCallback(async (boardId: string, title: string) => {
     try {
-      const response = await fetch(`/api/boards/${boardId}/lists`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ boardId, title, position: lists.length })
+      const newList = await supabaseStorage.createList({
+        boardId,
+        title,
+        position: lists.length
       });
       
-      if (!response.ok) throw new Error('Failed to create list');
-      
-      const newList = await response.json();
-      setLists(prev => [...prev, newList]);
+      if (newList) {
+        setLists(prev => [...prev, newList]);
+      }
     } catch (err) {
       toast({
         title: 'Error',
@@ -297,7 +239,7 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         variant: 'destructive'
       });
     }
-  }, [lists.length, getAuthHeaders, toast]);
+  }, [lists.length, toast]);
 
   // Update list - with optimistic update
   const updateList = useCallback(async (id: string, updates: Partial<TodoList>) => {
@@ -308,16 +250,10 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setLists(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l));
     
     try {
-      const response = await fetch(`/api/lists/${id}`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(updates)
-      });
-      
-      if (!response.ok) throw new Error('Failed to update list');
-      
-      const updated = await response.json();
-      setLists(prev => prev.map(l => l.id === id ? updated : l));
+      const updated = await supabaseStorage.updateList(id, updates);
+      if (updated) {
+        setLists(prev => prev.map(l => l.id === id ? updated : l));
+      }
     } catch (err) {
       // Rollback on error
       setLists(previousLists);
@@ -327,7 +263,7 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         variant: 'destructive'
       });
     }
-  }, [lists, getAuthHeaders, toast]);
+  }, [lists, toast]);
 
   // Delete list - with optimistic update
   const deleteList = useCallback(async (id: string) => {
@@ -340,12 +276,8 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCards(prev => prev.filter(c => c.listId !== id));
     
     try {
-      const response = await fetch(`/api/lists/${id}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
-      
-      if (!response.ok) throw new Error('Failed to delete list');
+      const success = await supabaseStorage.deleteList(id);
+      if (!success) throw new Error('Failed to delete list');
     } catch (err) {
       // Rollback on error
       setLists(previousLists);
@@ -356,27 +288,23 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         variant: 'destructive'
       });
     }
-  }, [lists, cards, getAuthHeaders, toast]);
+  }, [lists, cards, toast]);
 
   // Create card
   const createCard = useCallback(async (listId: string, title: string) => {
+    if (!user?.uid) return;
+    
     try {
       const position = cards.filter(c => c.listId === listId).length;
       
-      const response = await fetch('/api/cards', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ 
-          userId: user?.uid,
-          listId, 
-          title, 
-          position 
-        })
+      const newCard = await supabaseStorage.createCard({
+        userId: user.uid,
+        listId,
+        title,
+        position,
+        description: null,
       });
       
-      if (!response.ok) throw new Error('Failed to create card');
-      
-      const newCard = await response.json();
       setCards(prev => [...prev, newCard]);
     } catch (err) {
       toast({
@@ -385,27 +313,23 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         variant: 'destructive'
       });
     }
-  }, [user?.uid, cards, getAuthHeaders, toast]);
+  }, [user?.uid, cards, toast]);
 
   // Create inbox card (no listId)
   const createInboxCard = useCallback(async (title: string) => {
+    if (!user?.uid) return;
+    
     try {
       const position = inboxCards.length;
       
-      const response = await fetch('/api/cards', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ 
-          userId: user?.uid,
-          listId: null, 
-          title, 
-          position 
-        })
+      const newCard = await supabaseStorage.createCard({
+        userId: user.uid,
+        listId: null,
+        title,
+        position,
+        description: null,
       });
       
-      if (!response.ok) throw new Error('Failed to create inbox card');
-      
-      const newCard = await response.json();
       setInboxCards(prev => [...prev, newCard]);
     } catch (err) {
       toast({
@@ -414,7 +338,7 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         variant: 'destructive'
       });
     }
-  }, [user?.uid, inboxCards.length, getAuthHeaders, toast]);
+  }, [user?.uid, inboxCards.length, toast]);
 
   // Update card - with optimistic update
   const updateCard = useCallback(async (id: string, updates: Partial<Card>) => {
@@ -427,18 +351,7 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setInboxCards(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
     
     try {
-      const response = await fetch(`/api/cards/${id}`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(updates)
-      });
-      
-      if (!response.ok) throw new Error('Failed to update card');
-      
-      const updated = await response.json();
-      // Update with actual server response
-      setCards(prev => prev.map(c => c.id === id ? updated : c));
-      setInboxCards(prev => prev.map(c => c.id === id ? updated : c));
+      await supabaseStorage.updateCard(id, updates);
     } catch (err) {
       // Rollback on error
       setCards(previousCards);
@@ -449,7 +362,7 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         variant: 'destructive'
       });
     }
-  }, [cards, inboxCards, getAuthHeaders, toast]);
+  }, [cards, inboxCards, toast]);
 
   // Delete card - with optimistic update
   const deleteCard = useCallback(async (id: string) => {
@@ -462,13 +375,8 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setInboxCards(prev => prev.filter(c => c.id !== id));
     
     try {
-      const response = await fetch(`/api/cards/${id}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
-      
-      if (!response.ok) throw new Error('Failed to delete card');
-      
+      const success = await supabaseStorage.deleteCard(id);
+      if (!success) throw new Error('Failed to delete card');
       // Success - no need to update state, already done optimistically
     } catch (err) {
       // Rollback on error
@@ -480,7 +388,7 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         variant: 'destructive'
       });
     }
-  }, [cards, inboxCards, getAuthHeaders, toast]);
+  }, [cards, inboxCards, toast]);
 
   // Move card - with optimistic update
   const moveCard = useCallback(async (cardId: string, newListId: string | null, newPosition: number) => {
@@ -509,15 +417,12 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
     
     try {
-      const response = await fetch(`/api/cards/${cardId}/move`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ listId: newListId, position: newPosition })
+      const updated = await supabaseStorage.updateCard(cardId, {
+        listId: newListId,
+        position: newPosition
       });
       
-      if (!response.ok) throw new Error('Failed to move card');
-      
-      const updated = await response.json();
+      if (!updated) throw new Error('Failed to move card');
       
       // Update with actual server response
       if (newListId === null) {
@@ -536,20 +441,19 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       });
       throw err;
     }
-  }, [cards, inboxCards, getAuthHeaders, toast]);
+  }, [cards, inboxCards, toast]);
 
   // Create label
   const createLabel = useCallback(async (name: string, color: string) => {
+    if (!user?.uid) return;
+    
     try {
-      const response = await fetch('/api/labels', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ userId: user?.uid, name, color })
+      const newLabel = await supabaseStorage.createLabel({
+        userId: user.uid,
+        name,
+        color,
       });
       
-      if (!response.ok) throw new Error('Failed to create label');
-      
-      const newLabel = await response.json();
       setLabels(prev => [...prev, newLabel]);
     } catch (err) {
       toast({
@@ -558,20 +462,14 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         variant: 'destructive'
       });
     }
-  }, [user?.uid, getAuthHeaders, toast]);
+  }, [user?.uid, toast]);
 
   // Update label
   const updateLabel = useCallback(async (id: string, updates: { name?: string; color?: string }) => {
     try {
-      const response = await fetch(`/api/labels/${id}`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(updates)
-      });
+      const updated = await supabaseStorage.updateLabel(id, updates);
+      if (!updated) throw new Error('Failed to update label');
       
-      if (!response.ok) throw new Error('Failed to update label');
-      
-      const updated = await response.json();
       setLabels(prev => prev.map(l => l.id === id ? updated : l));
     } catch (err) {
       toast({
@@ -580,17 +478,13 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         variant: 'destructive'
       });
     }
-  }, [getAuthHeaders, toast]);
+  }, [toast]);
 
   // Delete label
   const deleteLabel = useCallback(async (id: string) => {
     try {
-      const response = await fetch(`/api/labels/${id}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
-      
-      if (!response.ok) throw new Error('Failed to delete label');
+      const success = await supabaseStorage.deleteLabel(id);
+      if (!success) throw new Error('Failed to delete label');
       
       setLabels(prev => prev.filter(l => l.id !== id));
     } catch (err) {
@@ -600,18 +494,13 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         variant: 'destructive'
       });
     }
-  }, [getAuthHeaders, toast]);
+  }, [toast]);
 
   // Add label to card
   const addLabelToCard = useCallback(async (cardId: string, labelId: string) => {
     try {
-      const response = await fetch(`/api/cards/${cardId}/labels`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ labelId })
-      });
-      
-      if (!response.ok) throw new Error('Failed to add label');
+      const success = await supabaseStorage.addLabelToCard(cardId, labelId);
+      if (!success) throw new Error('Failed to add label');
       
       // Refresh card to get updated labels
       await refreshData();
@@ -622,17 +511,13 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         variant: 'destructive'
       });
     }
-  }, [getAuthHeaders, refreshData, toast]);
+  }, [refreshData, toast]);
 
   // Remove label from card
   const removeLabelFromCard = useCallback(async (cardId: string, labelId: string) => {
     try {
-      const response = await fetch(`/api/cards/${cardId}/labels/${labelId}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
-      
-      if (!response.ok) throw new Error('Failed to remove label');
+      const success = await supabaseStorage.removeLabelFromCard(cardId, labelId);
+      if (!success) throw new Error('Failed to remove label');
       
       // Refresh card to get updated labels
       await refreshData();
@@ -643,7 +528,7 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         variant: 'destructive'
       });
     }
-  }, [getAuthHeaders, refreshData, toast]);
+  }, [refreshData, toast]);
 
   // Effect: Load data when active board changes
   useEffect(() => {

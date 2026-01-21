@@ -25,8 +25,8 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
-import { Flashcard, InsertFlashcard, Note } from "@shared/schema";
+import { storage } from "@/lib/supabase-storage";
+import { Flashcard, InsertFlashcard, Note, FlashcardDeck } from "@shared/schema";
 import { GroqAPI } from "@/lib/groq";
 import DeckManager from "./DeckManager";
 import { ErrorBoundary } from "../ErrorBoundary";
@@ -85,7 +85,7 @@ export const Flashcards = () => {
   const [documentContent, setDocumentContent] = useState<string>("");
 
   // Deck management state
-  const [decks, setDecks] = useState<Array<{id: string; name: string; parentDeckId?: string}>>([]);
+  const [decks, setDecks] = useState<FlashcardDeck[]>([]);
   const [selectedDeckId, setSelectedDeckId] = useState("");
   const [studyDeckId, setStudyDeckId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("manage");
@@ -103,15 +103,10 @@ export const Flashcards = () => {
     if (!user?.uid) return;
     
     try {
-      const response = await apiGet(`/api/users/${user.uid}/flashcard-decks`);
-      if (response.ok) {
-        const data = await response.json();
-        console.log(' Raw decks data:', data);
-        setDecks(data);
-        console.log(' Loaded decks:', data.length);
-      } else {
-        console.error('Failed to load decks:', response.status);
-      }
+      const data = await storage.getFlashcardDecksByUserId(user.uid);
+      console.log(' Raw decks data:', data);
+      setDecks(data);
+      console.log(' Loaded decks:', data.length);
     } catch (error) {
       console.error('Error loading decks:', error);
     }
@@ -123,19 +118,9 @@ export const Flashcards = () => {
     
     setIsLoading(true);
     try {
-      const response = await apiGet(`/api/users/${user.uid}/flashcards`);
-      if (response.ok) {
-        const data = await response.json();
-        setFlashcards(data);
-        console.log(' Loaded flashcards:', data.length);
-      } else {
-        console.error('Failed to load flashcards:', response.status);
-        toast({
-          title: "Error",
-          description: "Failed to load flashcards",
-          variant: "destructive",
-        });
-      }
+      const data = await storage.getFlashcardsByUserId(user.uid);
+      setFlashcards(data);
+      console.log(' Loaded flashcards:', data.length);
     } catch (error) {
       console.error('Error loading flashcards:', error);
       setHasError(true);
@@ -172,25 +157,21 @@ export const Flashcards = () => {
         willUseParentDeck: !newCard.subdeckId && !!newCard.deckId
       });
       
-      const response = await apiPost(`/api/users/${user.uid}/flashcards`, {
+      const createdFlashcard = await storage.createFlashcard({
+        userId: user.uid,
         front: newCard.front,
         back: newCard.back,
         difficulty: newCard.difficulty,
         deckId: newCard.subdeckId ? newCard.subdeckId : (newCard.deckId || null),
       });
 
-      if (response.ok) {
-        const createdFlashcard = await response.json();
-        setFlashcards(prev => [...prev, createdFlashcard]);
-        setNewCard({ front: "", back: "", difficulty: "medium", deckId: "", subdeckId: "" });
-        setIsCreateDialogOpen(false);
-        toast({
-          title: "Success",
-          description: "Flashcard created successfully",
-        });
-      } else {
-        throw new Error('Failed to create flashcard');
-      }
+      setFlashcards(prev => [...prev, createdFlashcard]);
+      setNewCard({ front: "", back: "", difficulty: "medium", deckId: "", subdeckId: "" });
+      setIsCreateDialogOpen(false);
+      toast({
+        title: "Success",
+        description: "Flashcard created successfully",
+      });
     } catch (error) {
       console.error('Error creating flashcard:', error);
       toast({
@@ -208,17 +189,17 @@ export const Flashcards = () => {
       if (!flashcard) return;
 
       const updatedReviewCount = (flashcard.reviewCount || 0) + 1;
-      const updatedLastReviewed = new Date().toISOString();
+      const updatedLastReviewed = new Date();
 
-      const response = await apiPut(`/api/flashcards/${flashcardId}`, {
+      const updatedFlashcard = await storage.updateFlashcard(flashcardId, {
         reviewCount: updatedReviewCount,
         lastReviewed: updatedLastReviewed,
       });
 
-      if (response.ok) {
+      if (updatedFlashcard) {
         setFlashcards(prev => prev.map(f => 
           f.id === flashcardId 
-            ? { ...f, reviewCount: updatedReviewCount, lastReviewed: new Date(updatedLastReviewed) }
+            ? { ...f, reviewCount: updatedReviewCount, lastReviewed: updatedLastReviewed }
             : f
         ));
       }
@@ -230,8 +211,8 @@ export const Flashcards = () => {
   // Delete flashcard
   const deleteFlashcard = async (flashcardId: string) => {
     try {
-      const response = await apiDelete(`/api/flashcards/${flashcardId}`);
-      if (response.ok) {
+      const success = await storage.deleteFlashcard(flashcardId);
+      if (success) {
         setFlashcards(prev => prev.filter(f => f.id !== flashcardId));
         toast({
           title: "Success",
@@ -260,19 +241,9 @@ export const Flashcards = () => {
     if (!user?.uid) return;
     
     try {
-      const response = await apiGet("/api/notes");
-      if (response.ok) {
-        const data = await response.json();
-        setNotes(data);
-        console.log(' Loaded notes for AI flashcards:', data.length);
-      } else {
-        console.error('Failed to load notes:', response.status);
-        toast({
-          title: "Error",
-          description: "Failed to load notes for AI flashcards",
-          variant: "destructive",
-        });
-      }
+      const data = await storage.getNotesByUserId(user.uid);
+      setNotes(data);
+      console.log(' Loaded notes for AI flashcards:', data.length);
     } catch (error) {
       console.error('Error loading notes:', error);
       toast({
@@ -471,7 +442,8 @@ Return only the JSON array, no other text.`;
 
     try {
       const promises = generatedCards.map(card => 
-        apiPost(`/api/users/${user.uid}/flashcards`, {
+        storage.createFlashcard({
+          userId: user.uid,
           front: card.front,
           back: card.back,
           difficulty: card.difficulty,

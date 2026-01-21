@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { storage } from '@/lib/supabase-storage';
 
 interface ClassroomData {
   courses: any[];
@@ -38,36 +39,18 @@ export const useGoogleClassroom = () => {
       let databaseClasses: any[] = [];
       let databaseAssignments: any[] = [];
 
-      // Fetch classes from database
+      // Fetch classes from database using storage
       try {
-        const classesResponse = await fetch(`/api/classes`, {
-          headers: {
-            'x-user-id': user.uid,
-          },
-        });
-        if (classesResponse.ok) {
-          databaseClasses = await classesResponse.json();
-          console.log('Fetched database classes:', databaseClasses.length);
-        } else {
-          console.warn('Failed to fetch database classes:', classesResponse.status);
-        }
+        databaseClasses = await storage.getClassesForUser(user.uid);
+        console.log('Fetched database classes:', databaseClasses.length);
       } catch (dbError) {
         console.warn('Failed to fetch classes:', dbError);
       }
 
-      // Fetch assignments from database
+      // Fetch assignments from database using storage
       try {
-        const assignmentsResponse = await fetch(`/api/users/${user.uid}/assignments`, {
-          headers: {
-            'x-user-id': user.uid,
-          },
-        });
-        if (assignmentsResponse.ok) {
-          databaseAssignments = await assignmentsResponse.json();
-          console.log('Fetched database assignments:', databaseAssignments.length);
-        } else {
-          console.warn('Failed to fetch database assignments:', assignmentsResponse.status);
-        }
+        databaseAssignments = await storage.getAssignmentsForUser(user.uid);
+        console.log('Fetched database assignments:', databaseAssignments.length);
       } catch (dbError) {
         console.warn('Failed to fetch assignments:', dbError);
       }

@@ -98,9 +98,9 @@ export const KanbanView: React.FC = () => {
                 The to-do board tables haven't been created yet. Please run the database migration script.
               </p>
               <div className="bg-muted p-4 rounded-lg text-left text-sm">
-                <p className="font-mono mb-2">server/migrations/todo_boards_schema.sql</p>
+                <p className="font-mono mb-2">supabase/migrations/todo_boards_schema.sql</p>
                 <p className="text-xs text-muted-foreground">
-                  Execute this SQL file in your Oracle console to create the required tables.
+                  Execute this SQL file in your Supabase SQL editor to create the required tables.
                 </p>
               </div>
             </>

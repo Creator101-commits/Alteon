@@ -13,6 +13,7 @@ import { useGoogleClassroom } from '@/hooks/useGoogleClassroom';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePersistentData } from '@/hooks/usePersistentData';
 import { useToast } from '@/hooks/use-toast';
+import { supabaseStorage as storage } from '@/lib/supabase-storage';
 import { ErrorHandler } from '@/lib/errorHandler';
 import { AssignmentSkeleton } from '@/components/LoadingSkeletons';
 import { NoAssignments, ErrorState, EmptyState } from '@/components/EmptyStates';
@@ -65,21 +66,14 @@ export default function Assignments() {
     if (!user?.uid) return;
 
     try {
-      // Delete the assignment via API
-      const response = await fetch(`/api/assignments/${assignmentId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': user.uid,
-        },
-      });
-
-      // Handle both success (204) and "not found" (404) as success
-      // 404 means assignment was already deleted or doesn't exist in DB
-      if (!response.ok && response.status !== 404) {
-        const errorData = await response.json();
-        console.error('API Error:', errorData);
-        throw new Error(errorData.message || 'Failed to complete assignment');
+      // Delete the assignment via storage
+      try {
+        await storage.deleteAssignment(assignmentId);
+      } catch (error: any) {
+        // Ignore "not found" errors
+        if (!error.message?.includes('not found')) {
+          throw error;
+        }
       }
 
       // Update localStorage cache - remove the assignment
@@ -125,17 +119,14 @@ export default function Assignments() {
     if (!user?.uid) return;
 
     try {
-      // Delete from database via API
-      const response = await fetch(`/api/assignments/${assignmentId}`, {
-        method: 'DELETE',
-        headers: {
-          'x-user-id': user.uid,
-        },
-      });
-
-      // Handle both success (204) and "not found" (404) as success
-      if (!response.ok && response.status !== 404) {
-        throw new Error('Failed to delete assignment');
+      // Delete from database via storage
+      try {
+        await storage.deleteAssignment(assignmentId);
+      } catch (error: any) {
+        // Ignore "not found" errors
+        if (!error.message?.includes('not found')) {
+          throw error;
+        }
       }
 
       // Update localStorage cache
@@ -196,9 +187,10 @@ export default function Assignments() {
       : null;
 
     const assignmentData = {
+      userId: user.uid,
       title: newAssignment.title,
       description: newAssignment.description || null,
-      dueDate,
+      dueDate: dueDate ? new Date(dueDate) : null,
       classId: newAssignment.classId === 'none' ? null : newAssignment.classId || null,
       priority: newAssignment.priority,
       status: 'pending',
@@ -227,21 +219,8 @@ export default function Assignments() {
     await syncClassroomData(false);
 
     try {
-      // Save to database via API
-      const response = await fetch('/api/assignments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': user.uid,
-        },
-        body: JSON.stringify(assignmentData),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create assignment');
-      }
-
-      const createdAssignment = await response.json();
+      // Save to database via Supabase
+      const createdAssignment = await storage.createAssignment(assignmentData);
 
       // Replace temporary assignment with real one
       const updatedAssignments = optimisticAssignments.map(a => 

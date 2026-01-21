@@ -4,6 +4,7 @@ import { getFirestore, doc, setDoc, getDoc, updateDoc } from "firebase/firestore
 import { getStorage } from "firebase/storage";
 import { getAnalytics } from "firebase/analytics";
 import { syncGoogleCalendarOnLogin } from "./google-calendar-service";
+import { storage as supabaseStorage } from "./supabase-storage";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDmx9WX5GHpG8Gx0xhJpNWJwo6_0fmAOsE",
@@ -99,31 +100,25 @@ export const signInWithGoogle = async (enableSync: boolean = true) => {
           console.log('Google sync disabled - skipping data synchronization');
         }
 
-        // Sync user to Oracle database
+        // Sync user to Supabase database
         try {
-          console.log('Syncing user to Oracle database...');
-          const response = await fetch('/api/auth/sync', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              uid: user.uid,
-              email: user.email,
-              displayName: user.displayName,
-              photoURL: user.photoURL,
-              accessToken: enableSync ? token : null,
-            }),
+          console.log('Syncing user to Supabase database...');
+          const syncedUser = await supabaseStorage.upsertUser({
+            uid: user.uid,
+            email: user.email || '',
+            displayName: user.displayName,
+            photoURL: user.photoURL,
+            accessToken: enableSync ? token : null,
           });
 
-          if (response.ok) {
-            console.log(' User synced to Oracle database');
+          if (syncedUser) {
+            console.log(' User synced to Supabase database');
           } else {
-            console.warn('Failed to sync user to Oracle database:', await response.text());
+            console.warn('Failed to sync user to Supabase database');
           }
-        } catch (oracleError) {
-          console.warn('Failed to sync user to Oracle database:', oracleError);
-          // Don't fail the login if Oracle sync fails
+        } catch (dbError) {
+          console.warn('Failed to sync user to Supabase database:', dbError);
+          // Don't fail the login if database sync fails
         }
       } catch (firestoreError) {
         console.warn('Failed to save user data to Firestore:', firestoreError);
@@ -261,30 +256,24 @@ export const signUpWithEmail = async (email: string, password: string, displayNa
         });
         console.log('Email user data saved to Firestore');
 
-        // Sync user to Oracle database
+        // Sync user to Supabase database
         try {
-          console.log('Syncing email user to Oracle database...');
-          const response = await fetch('/api/auth/sync', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              uid: user.uid,
-              email: user.email,
-              displayName: displayName,
-              photoURL: null,
-              accessToken: null,
-            }),
+          console.log('Syncing email user to Supabase database...');
+          const syncedUser = await supabaseStorage.upsertUser({
+            uid: user.uid,
+            email: user.email || '',
+            displayName: displayName,
+            photoURL: null,
+            accessToken: null,
           });
 
-          if (response.ok) {
-            console.log(' Email user synced to Oracle database');
+          if (syncedUser) {
+            console.log(' Email user synced to Supabase database');
           } else {
-            console.warn('Failed to sync email user to Oracle database:', await response.text());
+            console.warn('Failed to sync email user to Supabase database');
           }
-        } catch (oracleError) {
-          console.warn('Failed to sync email user to Oracle database:', oracleError);
+        } catch (dbError) {
+          console.warn('Failed to sync email user to Supabase database:', dbError);
         }
       } catch (firestoreError) {
         console.warn('Failed to save user data to Firestore:', firestoreError);
@@ -313,30 +302,24 @@ export const signInWithEmail = async (email: string, password: string) => {
         console.warn('Failed to update sign in time:', firestoreError);
       }
 
-      // Sync user to Oracle database on sign in
+      // Sync user to Supabase database on sign in
       try {
-        console.log('Syncing signed-in user to Oracle database...');
-        const response = await fetch('/api/auth/sync', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName,
-            photoURL: user.photoURL,
-            accessToken: null,
-          }),
+        console.log('Syncing signed-in user to Supabase database...');
+        const syncedUser = await supabaseStorage.upsertUser({
+          uid: user.uid,
+          email: user.email || '',
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+          accessToken: null,
         });
 
-        if (response.ok) {
-          console.log(' Signed-in user synced to Oracle database');
+        if (syncedUser) {
+          console.log(' Signed-in user synced to Supabase database');
         } else {
-          console.warn('Failed to sync signed-in user to Oracle database:', await response.text());
+          console.warn('Failed to sync signed-in user to Supabase database');
         }
-      } catch (oracleError) {
-        console.warn('Failed to sync signed-in user to Oracle database:', oracleError);
+      } catch (dbError) {
+        console.warn('Failed to sync signed-in user to Supabase database:', dbError);
       }
     }
 

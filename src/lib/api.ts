@@ -2,15 +2,17 @@ import { auth } from './firebase';
 import { memoryCache } from './cache';
 
 /**
- * Optimized utility functions for making authenticated API calls to Oracle backend
+ * Optimized utility functions for making authenticated API calls
  * Features: Caching, request deduplication, and performance optimization
+ * Note: Most data operations now use Supabase storage directly
+ * This file is kept for legacy compatibility and HAC API calls
  */
 
-// Use Railway backend in production, localhost for development
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+// Use relative URLs for Vercel serverless functions
+const API_BASE_URL = '';
 
-// Debug: Log the API URL being used (remove in production later)
-console.log('[API] Using base URL:', API_BASE_URL, 'VITE_API_URL:', import.meta.env.VITE_API_URL);
+// Debug: Log the API URL being used
+console.log('[API] Using relative URLs for Vercel API routes');
 
 // Wait for auth to be ready
 const waitForAuth = (): Promise<string | null> => {
@@ -154,11 +156,15 @@ export const flashcardAPI = {
   },
 };
 
-// Class API functions
+// Class API functions - now using storage directly
+import { storage } from './supabase-storage';
+
 export const classAPI = {
   // Get all classes for a user
   getClasses: async () => {
-    return makeAuthenticatedRequest('/api/classes', { method: 'GET' });
+    const currentUser = auth.currentUser;
+    if (!currentUser) throw new Error('User not authenticated');
+    return storage.getClassesForUser(currentUser.uid);
   },
 
   // Create a new class
@@ -170,10 +176,9 @@ export const classAPI = {
     teacherEmail?: string;
     color?: string;
   }) => {
-    return makeAuthenticatedRequest('/api/classes', {
-      method: 'POST',
-      body: JSON.stringify(classData),
-    });
+    const currentUser = auth.currentUser;
+    if (!currentUser) throw new Error('User not authenticated');
+    return storage.createClass({ userId: currentUser.uid, ...classData });
   },
 
   // Update a class
@@ -185,17 +190,12 @@ export const classAPI = {
     teacherEmail?: string;
     color?: string;
   }) => {
-    return makeAuthenticatedRequest(`/api/classes/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(updates),
-    });
+    return storage.updateClass(id, updates);
   },
 
   // Delete a class
   deleteClass: async (id: string) => {
-    return makeAuthenticatedRequest(`/api/classes/${id}`, {
-      method: 'DELETE',
-    });
+    return storage.deleteClass(id);
   },
 };
 

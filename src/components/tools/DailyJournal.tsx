@@ -7,7 +7,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
+import { storage } from "@/lib/supabase-storage";
 import { JournalEntry, InsertJournalEntry } from "@shared/schema";
 import {
   BookOpen,
@@ -41,19 +41,9 @@ export const DailyJournal = () => {
     
     setIsLoading(true);
     try {
-      const response = await apiGet(`/api/users/${user.uid}/journal-entries`);
-      if (response.ok) {
-        const data = await response.json();
-        setEntries(data);
-        console.log(' Loaded journal entries:', data.length);
-      } else {
-        console.error('Failed to load journal entries:', response.status);
-        toast({
-          title: "Error",
-          description: "Failed to load journal entries",
-          variant: "destructive",
-        });
-      }
+      const data = await storage.getJournalEntriesByUserId(user.uid);
+      setEntries(data);
+      console.log(' Loaded journal entries:', data.length);
     } catch (error) {
       console.error('Error loading journal entries:', error);
       toast({
@@ -103,12 +93,11 @@ export const DailyJournal = () => {
     try {
       if (editingEntry) {
         // Update existing entry
-        const response = await apiPut(`/api/journal-entries/${editingEntry.id}`, {
+        const updatedEntry = await storage.updateJournalEntry(editingEntry.id, {
           content: currentEntry.trim(),
         });
         
-        if (response.ok) {
-          const updatedEntry = await response.json();
+        if (updatedEntry) {
           setEntries(prev => prev.map(e => e.id === editingEntry.id ? updatedEntry : e));
         } else {
           throw new Error('Failed to update journal entry');
@@ -116,17 +105,12 @@ export const DailyJournal = () => {
       } else {
         // Create new entry
         const journalData = {
+          userId: user.uid,
           content: currentEntry.trim(),
         };
 
-        const response = await apiPost(`/api/users/${user.uid}/journal-entries`, journalData);
-        
-        if (response.ok) {
-          const createdEntry = await response.json();
-          setEntries(prev => [...prev, createdEntry]);
-        } else {
-          throw new Error('Failed to create journal entry');
-        }
+        const createdEntry = await storage.createJournalEntry(journalData);
+        setEntries(prev => [...prev, createdEntry]);
       }
 
       setCurrentEntry("");
@@ -148,9 +132,9 @@ export const DailyJournal = () => {
 
   const deleteEntry = async (id: string) => {
     try {
-      const response = await apiDelete(`/api/journal-entries/${id}`);
+      const success = await storage.deleteJournalEntry(id);
       
-      if (response.ok) {
+      if (success) {
         setEntries(prev => prev.filter(e => e.id !== id));
         
         if (editingEntry?.id === id) {

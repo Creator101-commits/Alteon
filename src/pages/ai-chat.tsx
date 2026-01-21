@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { apiGet, apiPost } from "@/lib/api";
+import { storage } from "@/lib/supabase-storage";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -136,11 +136,12 @@ export default function AiChat() {
 
   const loadNotes = async () => {
     try {
-      const response = await apiGet("/api/notes");
-      if (response.ok) {
-        const data = await response.json();
-        setNotes(Array.isArray(data) ? data : []);
+      if (!user?.uid) {
+        setNotes([]);
+        return;
       }
+      const data = await storage.getNotesByUserId(user.uid);
+      setNotes(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error("Failed to load notes:", error);
       setNotes([]);
@@ -184,6 +185,7 @@ export default function AiChat() {
 
     try {
       const summaryData = {
+        userId: user.uid,
         title: summary.title,
         summary: summary.summary,
         originalContent: summary.content,
@@ -191,13 +193,8 @@ export default function AiChat() {
         fileType: summary.fileType,
       };
 
-      const response = await apiPost(`/api/users/${user.uid}/ai-summaries`, summaryData);
-      
-      if (response.ok) {
-        console.log(' AI summary saved to database');
-      } else {
-        console.error('Failed to save AI summary to database:', response.status);
-      }
+      await storage.createAiSummary(summaryData);
+      console.log(' AI summary saved to database');
     } catch (error) {
       console.error('Error saving AI summary to database:', error);
     }

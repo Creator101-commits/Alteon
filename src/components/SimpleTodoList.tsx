@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabaseStorage } from '@/lib/supabase-storage';
 import { 
   Check, 
   Plus, 
@@ -16,8 +17,8 @@ import {
 interface TodoItem {
   id: string;
   title: string;
-  completed: boolean;
-  createdAt: string | Date;
+  completed: boolean | null;
+  createdAt: string | Date | null;
 }
 
 export function SimpleTodoList() {
@@ -28,7 +29,7 @@ export function SimpleTodoList() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Load todos from API on mount
+  // Load todos from Supabase on mount
   useEffect(() => {
     if (!user) {
       setIsLoading(false);
@@ -37,18 +38,8 @@ export function SimpleTodoList() {
 
     const fetchTodos = async () => {
       try {
-        const response = await fetch('/api/quick-tasks', {
-          headers: {
-            'x-user-id': user.uid
-          }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          setTodos(data);
-        } else {
-          console.error('Failed to fetch quick tasks:', response.statusText);
-        }
+        const data = await supabaseStorage.getQuickTasks(user.uid);
+        setTodos(data);
       } catch (error) {
         console.error('Error fetching quick tasks:', error);
       } finally {
@@ -69,32 +60,18 @@ export function SimpleTodoList() {
     setNewTodoTitle('');
     
     try {
-      const response = await fetch('/api/quick-tasks', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': user.uid
-        },
-        body: JSON.stringify({ title, completed: false })
+      const newTodo = await supabaseStorage.createQuickTask({
+        userId: user.uid,
+        title,
+        completed: false,
       });
       
-      if (response.ok) {
-        const newTodo = await response.json();
-        setTodos(prevTodos => [...prevTodos, newTodo]);
-        
-        toast({
-          title: "Task Added",
-          description: `"${title}" added to your list`,
-        });
-      } else {
-        console.error('Failed to create quick task:', response.statusText);
-        toast({
-          title: "Error",
-          description: "Failed to add task. Please try again.",
-          variant: "destructive"
-        });
-        setNewTodoTitle(title); // Restore the title on error
-      }
+      setTodos(prevTodos => [...prevTodos, newTodo]);
+      
+      toast({
+        title: "Task Added",
+        description: `"${title}" added to your list`,
+      });
     } catch (error) {
       console.error('Error creating quick task:', error);
       toast({
@@ -122,22 +99,7 @@ export function SimpleTodoList() {
     ));
     
     try {
-      const response = await fetch(`/api/quick-tasks/${id}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': user.uid
-        },
-        body: JSON.stringify({ completed: newCompleted })
-      });
-      
-      if (!response.ok) {
-        // Revert on error
-        setTodos(prevTodos => prevTodos.map(t => 
-          t.id === id ? { ...t, completed: !newCompleted } : t
-        ));
-        console.error('Failed to update quick task:', response.statusText);
-      }
+      await supabaseStorage.updateQuickTask(id, { completed: newCompleted });
     } catch (error) {
       // Revert on error
       setTodos(prevTodos => prevTodos.map(t => 
@@ -156,20 +118,7 @@ export function SimpleTodoList() {
     setTodos(prevTodos => prevTodos.filter(t => t.id !== id));
     
     try {
-      const response = await fetch(`/api/quick-tasks/${id}`, {
-        method: 'DELETE',
-        headers: {
-          'x-user-id': user.uid
-        }
-      });
-      
-      if (!response.ok) {
-        // Revert on error
-        if (todoToDelete) {
-          setTodos(prevTodos => [...prevTodos, todoToDelete]);
-        }
-        console.error('Failed to delete quick task:', response.statusText);
-      }
+      await supabaseStorage.deleteQuickTask(id);
     } catch (error) {
       // Revert on error
       if (todoToDelete) {

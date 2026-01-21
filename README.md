@@ -1,73 +1,72 @@
 # Alteon
 
-Alteon is a comprehensive, AI-powered productivity platform designed specifically for students. It combines intelligent note-taking, calendar management, assignment tracking, and AI assistance to create a unified academic workspace
+Alteon is a comprehensive, AI-powered productivity platform designed specifically for students. It combines intelligent note-taking, calendar management, assignment tracking, and AI assistance to create a unified academic workspace.
 
 ![Architecture Diagram](images/software_architecture_diagram.png)
 
 ## System Architecture
 
-Alteon follows a modern, cloud-native architecture designed for scalability, performance, and reliability. The system is built using a microservices approach with clear separation between frontend, backend, and data layers.
+Alteon follows a modern, serverless cloud-native architecture designed for scalability, performance, and reliability. The system leverages Vercel's edge network and Supabase's managed PostgreSQL database for optimal performance.
 
 ### Architecture Overview
 
-The application architecture consists of six main components working together to deliver a seamless user experience:
+The application architecture consists of five main components working together to deliver a seamless user experience:
 
 **1. Front-End Deployment Layer**
 - **Vercel**: Primary hosting platform for the React application, providing global CDN, automatic deployments, and serverless functions
+- **Vercel Edge Functions**: API routes running on Vercel's edge network for low-latency responses
 - **Cloudflare**: Additional security layer offering DDoS protection, web application firewall (WAF), and performance optimization
-- **Google Analytics**: User behavior tracking and application usage insights
 
 **2. Front-End Technology Stack**
 - **TypeScript**: Type-safe development ensuring code reliability and maintainability
 - **Vite**: Lightning-fast build tool and development server for optimal developer experience
 - **React**: Component-based UI framework for building interactive user interfaces
 - **Tailwind CSS**: Utility-first CSS framework for rapid, consistent styling
+- **React Query**: Powerful data synchronization and caching for optimal UX
 
 **3. Authentication & External APIs**
-- **Firebase SSO**: Secure authentication service supporting multiple login methods (Google, email/password)
-- **Firebase SDK**: Client-side integration for real-time features and user management
+- **Firebase Authentication**: Secure authentication service with Google SSO
+- **Firebase SDK**: Client-side integration for user management
 - **Groq AI API**: Advanced AI capabilities for content summarization, chat assistance, and smart study recommendations
 - **Google API Services**: Integration with Google Calendar, Classroom, and other productivity tools
 
-**4. Back-End Technology Stack**
-- **Node.js**: JavaScript runtime environment for server-side application logic
-- **Express.js**: Minimalist web framework for building robust APIs and handling HTTP requests
-- **Drizzle ORM**: Type-safe database toolkit for seamless database operations and migrations
-- **WebSocket**: Real-time bidirectional communication for live updates and collaborative features
+**4. Serverless Backend (Vercel Functions)**
+- **API Routes**: Serverless functions for HAC scraping, Google Calendar sync, and data operations
+- **Edge Runtime**: Functions running on Vercel's edge network for global low-latency
+- **Direct Database Access**: Supabase client connecting directly from frontend and API routes
 
-**5. Back-End Deployment Infrastructure**
-- **Render**: Cloud platform hosting the Node.js backend with automatic scaling and deployment
-- **Vercel Edge Network**: Global content delivery network ensuring low-latency API responses worldwide
-
-**6. Database Layer**
-- **Oracle Cloud Database**: Primary production database offering enterprise-grade reliability, security, and performance
-- **PostgreSQL**: Development and backup database solution providing flexibility and local development support
+**5. Database Layer**
+- **Supabase PostgreSQL**: Managed PostgreSQL database with real-time capabilities, Row Level Security, and automatic backups
+- **Supabase Storage**: Object storage for file uploads and media assets
+- **Drizzle ORM**: Type-safe database toolkit for schema management and migrations
 
 ### Data Flow Architecture
 
-The system follows a unidirectional data flow pattern:
+The system follows a modern serverless data flow pattern:
 
 1. **User Interaction**: Users interact with the React frontend hosted on Vercel
 2. **Authentication**: Firebase handles user authentication and session management
 3. **API Communication**: Frontend communicates with the Express.js backend via RESTful APIs
-4. **External Services**: Backend integrates with AI services (Groq) and Google APIs for enhanced functionality
-5. **Data Persistence**: All application data is stored in Oracle Cloud Database with PostgreSQL as fallback
-6. **Real-time Updates**: WebSocket connections enable live collaboration and instant notifications
+2. **Firebase Authentication**: Users authenticate via Google SSO through Firebase
+3. **API Calls**: Frontend makes requests to Vercel serverless functions and directly to Supabase
+4. **External Services**: Serverless functions integrate with AI services (Groq) and Google APIs
+5. **Data Persistence**: All application data stored in Supabase PostgreSQL with automatic backups
+6. **Real-time Updates**: React Query provides optimistic updates and automatic cache invalidation
 
 ### Infrastructure Benefits
 
-**Scalability**: The architecture can handle growing user loads through cloud-native scaling
-**Performance**: Global CDN and edge computing ensure fast response times worldwide  
-**Reliability**: Multiple database options and cloud providers minimize downtime risk
-**Security**: Multi-layered security with Cloudflare protection and Firebase authentication
-**Developer Experience**: Modern tooling and TypeScript ensure maintainable, bug-free code
-**Cost Efficiency**: Optimized use of free tiers and pay-as-you-scale pricing models
+**Scalability**: Serverless architecture auto-scales with user demand, no infrastructure management
+**Performance**: Global edge network and direct database connections ensure fast response times worldwide  
+**Reliability**: Managed services (Vercel + Supabase) provide 99.9% uptime SLA
+**Security**: Row Level Security in Supabase, Cloudflare protection, and Firebase authentication
+**Developer Experience**: Type-safe end-to-end with TypeScript, Drizzle ORM, and modern tooling
+**Cost Efficiency**: Serverless pricing scales from zero, only pay for actual usage
 
 ## Features
 
 ### Smart Note-Taking
-- **Rich Text Editor**: Google Docs-style editor powered by Slate.js with comprehensive formatting options
-- **AI Writing Assistant**: Minimalistic black-and-white AI sidebar that helps write, edit, and improve notes
+- **Rich Text Editor**: Google Docs-style editor powered by Tiptap with comprehensive formatting options
+- **AI Writing Assistant**: Minimalistic AI sidebar that helps write, edit, and improve notes
 - **Context-Aware AI**: AI receives note title, content, and category for intelligent suggestions
 - **Coding Agent-Style Editing**: View proposed changes with line count diff (plus/minus lines) before accepting
 - **Accept/Reject Changes**: Review AI edits with preview window before applying to notes

@@ -587,9 +587,6 @@ export const usePerformanceOptimization = () => {
 
       // Cache critical API endpoints
       const criticalEndpoints = [
-        '/api/user/profile',
-        '/api/assignments',
-        '/api/habits',
         '/api/calendar/events',
       ];
 

@@ -8,13 +8,14 @@ import { Badge } from '@/components/ui/badge';
 import { useBoardContext } from '@/contexts/BoardContext';
 import { useUIContext } from '@/contexts/UIContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabaseStorage } from '@/lib/supabase-storage';
 import type { Board } from '@shared/schema';
 
 interface DashboardTodo {
   id: string;
   title: string;
-  completed: boolean;
-  createdAt: string;
+  completed: boolean | null;
+  createdAt: Date | null;
 }
 
 export const Sidebar: React.FC = () => {
@@ -41,24 +42,16 @@ export const Sidebar: React.FC = () => {
   const [newInboxTask, setNewInboxTask] = useState('');
   const [isAddingTask, setIsAddingTask] = useState(false);
 
-  // Load dashboard quick tasks from API
+  // Load dashboard quick tasks from Supabase
   useEffect(() => {
     if (!user) return;
     
     const loadDashboardTodos = async () => {
       try {
-        const response = await fetch('/api/quick-tasks', {
-          headers: {
-            'x-user-id': user.uid
-          }
-        });
-        
-        if (response.ok) {
-          const todos = await response.json();
-          // Only get incomplete tasks
-          const incompleteTodos = todos.filter((t: DashboardTodo) => !t.completed);
-          setDashboardTodos(incompleteTodos);
-        }
+        const todos = await supabaseStorage.getQuickTasks(user.uid);
+        // Only get incomplete tasks
+        const incompleteTodos = todos.filter((t) => !t.completed);
+        setDashboardTodos(incompleteTodos);
       } catch (error) {
         console.error('Error loading dashboard todos:', error);
       }

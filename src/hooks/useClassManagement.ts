@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { classAPI } from '@/lib/api';
+import { supabaseStorage } from '@/lib/supabase-storage';
 
 interface ClassData {
   id?: string;
@@ -27,14 +27,15 @@ export const useClassManagement = () => {
 
     setIsCreating(true);
     try {
-      const response = await classAPI.createClass(classData);
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Failed to create class');
-      }
-
-      const createdClass = await response.json();
+      const createdClass = await supabaseStorage.createClass({
+        userId: user.uid,
+        name: classData.name,
+        section: classData.section,
+        description: classData.description,
+        teacherName: classData.teacherName,
+        teacherEmail: classData.teacherEmail,
+        color: classData.color || '#42a5f5',
+      });
       
       toast({
         title: "Success!",
@@ -61,14 +62,18 @@ export const useClassManagement = () => {
 
     setIsUpdating(id);
     try {
-      const response = await classAPI.updateClass(id, updates);
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Failed to update class');
-      }
+      const updatedClass = await supabaseStorage.updateClass(id, {
+        name: updates.name,
+        section: updates.section,
+        description: updates.description,
+        teacherName: updates.teacherName,
+        teacherEmail: updates.teacherEmail,
+        color: updates.color,
+      });
 
-      const updatedClass = await response.json();
+      if (!updatedClass) {
+        throw new Error('Failed to update class');
+      }
       
       toast({
         title: "Success!",
@@ -95,11 +100,10 @@ export const useClassManagement = () => {
 
     setIsDeleting(id);
     try {
-      const response = await classAPI.deleteClass(id);
+      const success = await supabaseStorage.deleteClass(id);
       
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Failed to delete class');
+      if (!success) {
+        throw new Error('Failed to delete class');
       }
 
       toast({

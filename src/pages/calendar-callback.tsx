@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
+import { storage } from '@/lib/supabase-storage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 
@@ -39,7 +40,7 @@ export default function CalendarCallback() {
 
       try {
         // Exchange code for access token
-        const response = await fetch('/api/auth/calendar/callback', {
+        const response = await fetch('/api/auth/calendar-callback', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -66,19 +67,12 @@ export default function CalendarCallback() {
         // Also sync tokens to the database for server-side refresh
         if (user?.uid && provider === 'google') {
           try {
-            await fetch('/api/auth/sync', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                uid: user.uid,
-                email: user.email,
-                displayName: user.displayName,
-                photoURL: user.photoURL,
-                accessToken: accessToken,
-                refreshToken: refreshToken,
-              }),
+            await storage.upsertUser({
+              uid: user.uid,
+              email: user.email || '',
+              displayName: user.displayName,
+              photoURL: user.photoURL,
+              accessToken: accessToken,
             });
             console.log(' Synced calendar tokens to database');
           } catch (syncError) {

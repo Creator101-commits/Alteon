@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { supabaseStorage } from '@/lib/supabase-storage';
 
 export interface Board {
   id: string;
@@ -26,13 +27,14 @@ export interface TodoList {
 export interface Card {
   id: string;
   listId: string | null;
-  boardId: string | null;
   userId: string;
   title: string;
-  description: string | null;
-  dueDate: Date | null;
-  isCompleted: boolean;
+  description?: string | null;
   position: number;
+  dueDate?: Date | null;
+  isCompleted: boolean;
+  isArchived: boolean;
+  labels?: Label[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -66,9 +68,35 @@ export function useTodoBoards() {
   const [labels, setLabels] = useState<Label[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const getHeaders = () => ({
-    'Content-Type': 'application/json',
-    'x-user-id': user?.uid || '',
+  // Type mappers to handle nullable fields from Supabase
+  const mapList = (l: any): TodoList => ({
+    ...l,
+    position: l.position ?? 0,
+    isArchived: l.isArchived ?? false,
+    createdAt: l.createdAt || new Date()
+  });
+
+  const mapCard = (c: any): Card => ({
+    ...c,
+    position: c.position ?? 0,
+    isArchived: c.isArchived ?? false,
+    isCompleted: c.isCompleted ?? false,
+    createdAt: c.createdAt || new Date(),
+    updatedAt: c.updatedAt || new Date()
+  });
+
+  const mapLabel = (l: any): Label => ({
+    ...l,
+    createdAt: l.createdAt || new Date()
+  });
+
+  const mapBoard = (b: any): Board => ({
+    ...b,
+    createdAt: b.createdAt || new Date(),
+    updatedAt: b.updatedAt || new Date(),
+    position: b.position ?? 0,
+    isArchived: b.isArchived ?? false,
+    isFavorited: b.isFavorited ?? false
   });
 
   // Fetch all boards
@@ -76,18 +104,19 @@ export function useTodoBoards() {
     if (!user?.uid) return;
     
     try {
-      const response = await fetch('/api/boards', {
-        headers: getHeaders(),
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch boards');
-      
-      const data = await response.json();
-      setBoards(data);
+      const data = await supabaseStorage.getBoardsByUserId(user.uid);
+      // Map to match Board type (handle nullables)
+      const boards = data.map(b => ({
+        ...b,
+        position: b.position ?? 0,
+        isArchived: b.isArchived ?? false,
+        isFavorited: b.isFavorited ?? false,
+      })) as Board[];
+      setBoards(boards);
       
       // Auto-select first board if none selected
-      if (!currentBoard && data.length > 0) {
-        setCurrentBoard(data[0]);
+      if (!currentBoard && boards.length > 0) {
+        setCurrentBoard(boards[0]);
       }
     } catch (error) {
       console.error('Error fetching boards:', error);
@@ -102,14 +131,8 @@ export function useTodoBoards() {
   // Fetch lists for current board
   const fetchLists = useCallback(async (boardId: string) => {
     try {
-      const response = await fetch(`/api/boards/${boardId}/lists`, {
-        headers: getHeaders(),
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch lists');
-      
-      const data = await response.json();
-      setLists(data);
+      const data = await supabaseStorage.getListsByBoardId(boardId);
+      setLists(data.map(mapList));
     } catch (error) {
       console.error('Error fetching lists:', error);
     }
@@ -118,13 +141,7 @@ export function useTodoBoards() {
   // Fetch cards for a list
   const fetchCards = useCallback(async (listId: string) => {
     try {
-      const response = await fetch(`/api/lists/${listId}/cards`, {
-        headers: getHeaders(),
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch cards');
-      
-      return await response.json();
+      return await supabaseStorage.getCardsByListId(listId);
     } catch (error) {
       console.error('Error fetching cards:', error);
       return [];
@@ -136,14 +153,8 @@ export function useTodoBoards() {
     if (!user?.uid) return;
     
     try {
-      const response = await fetch('/api/cards/inbox', {
-        headers: getHeaders(),
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch inbox');
-      
-      const data = await response.json();
-      setInboxCards(data);
+      const data = await supabaseStorage.getInboxCards(user.uid);
+      setInboxCards(data.map(mapCard));
     } catch (error) {
       console.error('Error fetching inbox:', error);
     }
@@ -154,14 +165,8 @@ export function useTodoBoards() {
     if (!user?.uid) return;
     
     try {
-      const response = await fetch('/api/labels', {
-        headers: getHeaders(),
-      });
-      
-      if (!response.ok) throw new Error('Failed to fetch labels');
-      
-      const data = await response.json();
-      setLabels(data);
+      const data = await supabaseStorage.getLabelsByUserId(user.uid);
+      setLabels(data.map(mapLabel));
     } catch (error) {
       console.error('Error fetching labels:', error);
     }
@@ -169,18 +174,28 @@ export function useTodoBoards() {
 
   // Create board
   const createBoard = useCallback(async (title: string, background?: string) => {
+    if (!user?.uid) return;
+    
     try {
-      const response = await fetch('/api/boards', {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ title, background: background || null, position: boards.length }),
+      const newBoard = await supabaseStorage.createBoard({
+        userId: user.uid,
+        title,
+        background: background || null,
+        position: boards.length,
       });
       
-      if (!response.ok) throw new Error('Failed to create board');
+      const mappedBoard = {
+        ...newBoard,
+        createdAt: newBoard.createdAt || new Date(),
+        updatedAt: newBoard.updatedAt || new Date(),
+        background: newBoard.background || null,
+        position: newBoard.position ?? boards.length,
+        isArchived: newBoard.isArchived ?? false,
+        isFavorited: newBoard.isFavorited ?? false
+      };
       
-      const newBoard = await response.json();
-      setBoards(prev => [...prev, newBoard]);
-      setCurrentBoard(newBoard);
+      setBoards(prev => [...prev, mappedBoard]);
+      setCurrentBoard(mappedBoard);
       
       toast({
         title: 'Board Created',
@@ -202,19 +217,23 @@ export function useTodoBoards() {
   // Update board
   const updateBoard = useCallback(async (id: string, updates: Partial<Board>) => {
     try {
-      const response = await fetch(`/api/boards/${id}`, {
-        method: 'PATCH',
-        headers: getHeaders(),
-        body: JSON.stringify(updates),
-      });
+      const updated = await supabaseStorage.updateBoard(id, updates);
       
-      if (!response.ok) throw new Error('Failed to update board');
-      
-      const updated = await response.json();
-      setBoards(prev => prev.map(b => b.id === id ? updated : b));
-      
-      if (currentBoard?.id === id) {
-        setCurrentBoard(updated);
+      if (updated) {
+        const mappedBoard = {
+          ...updated,
+          createdAt: updated.createdAt || new Date(),
+          updatedAt: updated.updatedAt || new Date(),
+          position: updated.position ?? 0,
+          isArchived: updated.isArchived ?? false,
+          isFavorited: updated.isFavorited ?? false
+        };
+        
+        setBoards(prev => prev.map(b => b.id === id ? mappedBoard : b));
+        
+        if (currentBoard?.id === id) {
+          setCurrentBoard(mappedBoard);
+        }
       }
       
       return updated;
@@ -227,28 +246,25 @@ export function useTodoBoards() {
       });
       throw error;
     }
-  }, [currentBoard, user?.uid, toast]);
+  }, [currentBoard, toast]);
 
   // Delete board
   const deleteBoard = useCallback(async (id: string) => {
     try {
-      const response = await fetch(`/api/boards/${id}`, {
-        method: 'DELETE',
-        headers: getHeaders(),
-      });
+      const success = await supabaseStorage.deleteBoard(id);
       
-      if (!response.ok) throw new Error('Failed to delete board');
-      
-      setBoards(prev => prev.filter(b => b.id !== id));
-      
-      if (currentBoard?.id === id) {
-        setCurrentBoard(boards.find(b => b.id !== id) || null);
+      if (success) {
+        setBoards(prev => prev.filter(b => b.id !== id));
+        
+        if (currentBoard?.id === id) {
+          setCurrentBoard(boards.find(b => b.id !== id) || null);
+        }
+        
+        toast({
+          title: 'Board Deleted',
+          description: 'Board has been removed',
+        });
       }
-      
-      toast({
-        title: 'Board Deleted',
-        description: 'Board has been removed',
-      });
     } catch (error) {
       console.error('Error deleting board:', error);
       toast({
@@ -257,21 +273,23 @@ export function useTodoBoards() {
         variant: 'destructive',
       });
     }
-  }, [boards, currentBoard, user?.uid, toast]);
+  }, [boards, currentBoard, toast]);
 
   // Create list
   const createList = useCallback(async (boardId: string, title: string) => {
     try {
-      const response = await fetch(`/api/boards/${boardId}/lists`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ title, position: lists.length }),
+      const newList = await supabaseStorage.createList({
+        boardId,
+        title,
+        position: lists.length,
       });
       
-      if (!response.ok) throw new Error('Failed to create list');
+      setLists(prev => [...prev, mapList(newList)]);
       
-      const newList = await response.json();
-      setLists(prev => [...prev, newList]);
+      toast({
+        title: 'List Created',
+        description: `"${title}" has been created`,
+      });
       
       return newList;
     } catch (error) {
@@ -283,21 +301,16 @@ export function useTodoBoards() {
       });
       throw error;
     }
-  }, [lists.length, user?.uid, toast]);
+  }, [lists.length, toast]);
 
   // Update list
   const updateList = useCallback(async (id: string, updates: Partial<TodoList>) => {
     try {
-      const response = await fetch(`/api/lists/${id}`, {
-        method: 'PATCH',
-        headers: getHeaders(),
-        body: JSON.stringify(updates),
-      });
+      const updated = await supabaseStorage.updateList(id, updates);
       
-      if (!response.ok) throw new Error('Failed to update list');
-      
-      const updated = await response.json();
-      setLists(prev => prev.map(l => l.id === id ? updated : l));
+      if (updated) {
+        setLists(prev => prev.map(l => l.id === id ? mapList(updated) : l));
+      }
       
       return updated;
     } catch (error) {
@@ -309,24 +322,21 @@ export function useTodoBoards() {
       });
       throw error;
     }
-  }, [user?.uid, toast]);
+  }, [toast]);
 
   // Delete list
   const deleteList = useCallback(async (id: string) => {
     try {
-      const response = await fetch(`/api/lists/${id}`, {
-        method: 'DELETE',
-        headers: getHeaders(),
-      });
+      const success = await supabaseStorage.deleteList(id);
       
-      if (!response.ok) throw new Error('Failed to delete list');
-      
-      setLists(prev => prev.filter(l => l.id !== id));
-      
-      toast({
-        title: 'List Deleted',
-        description: 'List and its cards have been removed',
-      });
+      if (success) {
+        setLists(prev => prev.filter(l => l.id !== id));
+        
+        toast({
+          title: 'List Deleted',
+          description: 'List and its cards have been removed',
+        });
+      }
     } catch (error) {
       console.error('Error deleting list:', error);
       toast({
@@ -335,25 +345,25 @@ export function useTodoBoards() {
         variant: 'destructive',
       });
     }
-  }, [user?.uid, toast]);
+  }, [toast]);
 
   // Create card
   const createCard = useCallback(async (data: { title: string; listId?: string; boardId?: string; description?: string }) => {
+    if (!user?.uid) return;
+    
     try {
-      const response = await fetch('/api/cards', {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(data),
+      const newCard = await supabaseStorage.createCard({
+        userId: user.uid,
+        title: data.title,
+        listId: data.listId || null,
+        description: data.description || null,
       });
       
-      if (!response.ok) throw new Error('Failed to create card');
-      
-      const newCard = await response.json();
-      
+      const mappedCard = mapCard(newCard);
       if (data.listId) {
-        setCards(prev => [...prev, newCard]);
+        setCards(prev => [...prev, mappedCard]);
       } else {
-        setInboxCards(prev => [...prev, newCard]);
+        setInboxCards(prev => [...prev, mappedCard]);
       }
       
       return newCard;
@@ -371,19 +381,14 @@ export function useTodoBoards() {
   // Update card
   const updateCard = useCallback(async (id: string, updates: Partial<Card>) => {
     try {
-      const response = await fetch(`/api/cards/${id}`, {
-        method: 'PATCH',
-        headers: getHeaders(),
-        body: JSON.stringify(updates),
-      });
+      const updated = await supabaseStorage.updateCard(id, updates);
       
-      if (!response.ok) throw new Error('Failed to update card');
-      
-      const updated = await response.json();
-      
-      // Update in appropriate state
-      setCards(prev => prev.map(c => c.id === id ? updated : c));
-      setInboxCards(prev => prev.map(c => c.id === id ? updated : c));
+      if (updated) {
+        const mappedCard = mapCard(updated);
+        // Update in appropriate state
+        setCards(prev => prev.map(c => c.id === id ? mappedCard : c));
+        setInboxCards(prev => prev.map(c => c.id === id ? mappedCard : c));
+      }
       
       return updated;
     } catch (error) {
@@ -395,28 +400,26 @@ export function useTodoBoards() {
       });
       throw error;
     }
-  }, [user?.uid, toast]);
+  }, [toast]);
 
   // Move card (drag and drop)
   const moveCard = useCallback(async (cardId: string, listId: string | null, boardId: string | null, position: number) => {
     try {
-      const response = await fetch(`/api/cards/${cardId}/move`, {
-        method: 'PATCH',
-        headers: getHeaders(),
-        body: JSON.stringify({ listId, boardId, position }),
+      const updated = await supabaseStorage.updateCard(cardId, {
+        listId,
+        position,
       });
       
-      if (!response.ok) throw new Error('Failed to move card');
-      
-      const updated = await response.json();
-      
-      // Remove from inbox if moved to list
-      if (listId) {
-        setInboxCards(prev => prev.filter(c => c.id !== cardId));
-        setCards(prev => [...prev.filter(c => c.id !== cardId), updated]);
-      } else {
-        setCards(prev => prev.filter(c => c.id !== cardId));
-        setInboxCards(prev => [...prev.filter(c => c.id !== cardId), updated]);
+      if (updated) {
+        const mappedCard = mapCard(updated);
+        // Remove from inbox if moved to list
+        if (listId) {
+          setInboxCards(prev => prev.filter(c => c.id !== cardId));
+          setCards(prev => [...prev.filter(c => c.id !== cardId), mappedCard]);
+        } else {
+          setCards(prev => prev.filter(c => c.id !== cardId));
+          setInboxCards(prev => [...prev.filter(c => c.id !== cardId), mappedCard]);
+        }
       }
       
       return updated;
@@ -429,25 +432,22 @@ export function useTodoBoards() {
       });
       throw error;
     }
-  }, [user?.uid, toast]);
+  }, [toast]);
 
   // Delete card
   const deleteCard = useCallback(async (id: string) => {
     try {
-      const response = await fetch(`/api/cards/${id}`, {
-        method: 'DELETE',
-        headers: getHeaders(),
-      });
+      const success = await supabaseStorage.deleteCard(id);
       
-      if (!response.ok) throw new Error('Failed to delete card');
-      
-      setCards(prev => prev.filter(c => c.id !== id));
-      setInboxCards(prev => prev.filter(c => c.id !== id));
-      
-      toast({
-        title: 'Card Deleted',
-        description: 'Card has been removed',
-      });
+      if (success) {
+        setCards(prev => prev.filter(c => c.id !== id));
+        setInboxCards(prev => prev.filter(c => c.id !== id));
+        
+        toast({
+          title: 'Card Deleted',
+          description: 'Card has been removed',
+        });
+      }
     } catch (error) {
       console.error('Error deleting card:', error);
       toast({
@@ -456,21 +456,25 @@ export function useTodoBoards() {
         variant: 'destructive',
       });
     }
-  }, [user?.uid, toast]);
+  }, [toast]);
 
   // Create label
   const createLabel = useCallback(async (name: string, color: string) => {
+    if (!user?.uid) return;
+    
     try {
-      const response = await fetch('/api/labels', {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify({ name, color }),
+      const newLabel = await supabaseStorage.createLabel({
+        userId: user.uid,
+        name,
+        color,
       });
       
-      if (!response.ok) throw new Error('Failed to create label');
+      setLabels(prev => [...prev, mapLabel(newLabel)]);
       
-      const newLabel = await response.json();
-      setLabels(prev => [...prev, newLabel]);
+      toast({
+        title: 'Label Created',
+        description: `"${name}" has been created`,
+      });
       
       return newLabel;
     } catch (error) {

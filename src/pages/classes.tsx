@@ -15,7 +15,6 @@ import { useToast } from '@/hooks/use-toast';
 import { usePersistentData } from '@/hooks/usePersistentData';
 import { useClassManagement } from '@/hooks/useClassManagement';
 import { ClassCard } from '@/components/memoized';
-import { apiGet, apiPost } from '@/lib/api';
 import { ErrorHandler } from '@/lib/errorHandler';
 import { ClassSkeleton } from '@/components/LoadingSkeletons';
 import { EmptyState, NoClasses } from '@/components/EmptyStates';

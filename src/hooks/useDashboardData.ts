@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
-import { apiGet } from '@/lib/api';
+import { supabaseStorage } from '@/lib/supabase-storage';
 
 // Hook for fetching assignments data
 export const useAssignments = () => {
@@ -10,9 +10,7 @@ export const useAssignments = () => {
     queryKey: ['assignments', user?.uid],
     queryFn: async () => {
       if (!user?.uid) return [];
-      const response = await apiGet(`/api/users/${user.uid}/assignments`);
-      if (!response.ok) throw new Error('Failed to fetch assignments');
-      return response.json();
+      return await supabaseStorage.getAssignmentsByUserId(user.uid);
     },
     enabled: !!user?.uid,
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -27,9 +25,7 @@ export const useNotes = () => {
     queryKey: ['notes', user?.uid],
     queryFn: async () => {
       if (!user?.uid) return [];
-      const response = await apiGet(`/api/notes`);
-      if (!response.ok) throw new Error('Failed to fetch notes');
-      return response.json();
+      return await supabaseStorage.getNotesByUserId(user.uid);
     },
     enabled: !!user?.uid,
     staleTime: 5 * 60 * 1000,
@@ -44,9 +40,7 @@ export const usePomodoroSessions = () => {
     queryKey: ['pomodoro-sessions', user?.uid],
     queryFn: async () => {
       if (!user?.uid) return [];
-      const response = await apiGet(`/api/users/${user.uid}/pomodoro-sessions`);
-      if (!response.ok) throw new Error('Failed to fetch pomodoro sessions');
-      return response.json();
+      return await supabaseStorage.getPomodoroSessionsByUserId(user.uid);
     },
     enabled: !!user?.uid,
     staleTime: 2 * 60 * 1000, // 2 minutes
@@ -61,9 +55,7 @@ export const useFlashcards = () => {
     queryKey: ['flashcards', user?.uid],
     queryFn: async () => {
       if (!user?.uid) return [];
-      const response = await apiGet(`/api/users/${user.uid}/flashcards`);
-      if (!response.ok) throw new Error('Failed to fetch flashcards');
-      return response.json();
+      return await supabaseStorage.getFlashcardsByUserId(user.uid);
     },
     enabled: !!user?.uid,
     staleTime: 10 * 60 * 1000, // 10 minutes
@@ -78,9 +70,7 @@ export const useMoodEntries = () => {
     queryKey: ['mood-entries', user?.uid],
     queryFn: async () => {
       if (!user?.uid) return [];
-      const response = await apiGet(`/api/users/${user.uid}/mood-entries`);
-      if (!response.ok) throw new Error('Failed to fetch mood entries');
-      return response.json();
+      return await supabaseStorage.getMoodEntriesByUserId(user.uid);
     },
     enabled: !!user?.uid,
     staleTime: 5 * 60 * 1000,
@@ -95,9 +85,7 @@ export const useJournalEntries = () => {
     queryKey: ['journal-entries', user?.uid],
     queryFn: async () => {
       if (!user?.uid) return [];
-      const response = await apiGet(`/api/users/${user.uid}/journal-entries`);
-      if (!response.ok) throw new Error('Failed to fetch journal entries');
-      return response.json();
+      return await supabaseStorage.getJournalEntriesByUserId(user.uid);
     },
     enabled: !!user?.uid,
     staleTime: 5 * 60 * 1000,

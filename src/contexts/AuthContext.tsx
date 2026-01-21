@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User, onAuthStateChanged } from "firebase/auth";
 import { auth, handleAuthRedirect, getUserData, signInWithGoogle, signUpWithEmail, signInWithEmail } from "@/lib/firebase";
-import { getApiUrl } from "@/lib/apiClient";
+import { supabaseStorage } from "@/lib/supabase-storage";
 
 interface AuthContextType {
   user: User | null;
@@ -30,32 +30,43 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
-// Sync user to Oracle database
+// Sync user to Supabase database (replaces Oracle sync)
 const syncUserToDatabase = async (user: User, userData: any) => {
   try {
-    console.log(' Syncing user to Oracle database...', user.uid);
-    const response = await fetch(getApiUrl('/api/auth/sync'), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-user-id': user.uid,
-      },
-      body: JSON.stringify({
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-        accessToken: userData?.googleAccessToken || null,
-      }),
-    });
+    console.log('🔄 Syncing user to Supabase database...', user.uid);
     
-    if (!response.ok) {
-      console.warn('Failed to sync user to database:', await response.text());
+    // Check if user exists in Supabase
+    const existingUser = await supabaseStorage.getUser(user.uid);
+    
+    if (!existingUser) {
+      // Create new user in Supabase
+      await supabaseStorage.createUser({
+        id: user.uid, // Firebase UID as primary key
+        email: user.email!,
+        name: user.displayName || user.email?.split('@')[0] || '',
+        firstName: user.displayName?.split(' ')[0] || null,
+        lastName: user.displayName?.split(' ').slice(1).join(' ') || null,
+        avatar: user.photoURL || null,
+        googleId: userData?.googleId || null,
+        googleAccessToken: userData?.googleAccessToken || null,
+        googleRefreshToken: userData?.googleRefreshToken || null,
+        preferences: {},
+      });
+      console.log('✅ New user created in Supabase');
     } else {
-      console.log(' User synced to database successfully');
+      // Update existing user with latest Firebase data
+      await supabaseStorage.updateUser(user.uid, {
+        name: user.displayName || existingUser.name,
+        firstName: user.displayName?.split(' ')[0] || existingUser.firstName,
+        lastName: user.displayName?.split(' ').slice(1).join(' ') || existingUser.lastName,
+        avatar: user.photoURL || existingUser.avatar,
+        googleAccessToken: userData?.googleAccessToken || existingUser.googleAccessToken,
+        googleRefreshToken: userData?.googleRefreshToken || existingUser.googleRefreshToken,
+      });
+      console.log('✅ User synced to Supabase successfully');
     }
   } catch (error) {
-    console.warn('Error syncing user to database:', error);
+    console.error('❌ Error syncing user to Supabase:', error);
   }
 };
 
@@ -143,7 +154,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           setLoading(false);
           console.log(' User authenticated with cached data');
           
-          // Sync user to Oracle database in background
+          // Sync user to Supabase database in background
           syncUserToDatabase(user, cachedData).catch(console.error);
         } else {
           // No cache, fetch from Firestore
@@ -154,7 +165,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
               saveUserDataToStorage(user.uid, data);
             }
             
-            // Sync user to Oracle database
+            // Sync user to Supabase database
             await syncUserToDatabase(user, data);
           } catch (error) {
             console.error("Error fetching user data:", error);

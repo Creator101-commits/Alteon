@@ -45,7 +45,7 @@ import {
 
 // Calendar Component
 function CalendarComponent() {
-  const { events, isLoading } = useCalendar();
+  const { events } = useCalendar();
   const [currentDate, setCurrentDate] = useState(new Date());
 
   // Get calendar events for the current month
@@ -163,7 +163,7 @@ function CalendarComponent() {
           <div className="grid grid-cols-7 gap-1">
             {days.map((day, index) => {
               if (day === null) {
-                return <div key={index} className="h-8" />;
+                return <div key={`empty-${index}`} className="h-8" />;
               }
               
               const dayEvents = getEventsForDay(day);
@@ -171,7 +171,7 @@ function CalendarComponent() {
               
               return (
                 <div
-                  key={day}
+                  key={`day-${day}`}
                   className={`h-8 flex items-center justify-center rounded cursor-pointer transition-colors ${
                     isToday 
                       ? 'bg-foreground text-background font-semibold' 

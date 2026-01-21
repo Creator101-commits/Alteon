@@ -28,6 +28,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { HabitCard } from "@/components/memoized";
+import { supabaseStorage } from "@/lib/supabase-storage";
 import { 
   Target, 
   Plus, 
@@ -42,16 +43,17 @@ import { format, isToday, parseISO } from "date-fns";
 interface Habit {
   id: string;
   name: string;
-  description: string;
-  category: string;
-  frequency: 'daily' | 'weekly' | 'custom';
-  targetCount: number;
-  color: string;
-  icon: string;
-  streak: number;
+  description: string | null;
+  category: string | null;
+  frequency: 'daily' | 'weekly' | 'custom' | null;
+  targetCount: number | null;
+  color: string | null;
+  icon: string | null;
+  streak: number | null;
   completions: { [date: string]: number };
-  createdAt: string;
-  isActive: boolean;
+  createdAt: Date | null;
+  isActive: boolean | null;
+  userId: string;
 }
 
 const HABIT_CATEGORIES = [
@@ -85,32 +87,25 @@ export default function HabitTracker() {
     icon: HABIT_ICONS[0]
   });
 
-  // Load habits from backend
+  // Load habits from Supabase
   useEffect(() => {
     const load = async () => {
       if (!user) return;
       try {
-        const res = await fetch("/api/habits", {
-          headers: {
-            "x-user-id": user.uid,
-          },
-        });
-        if (!res.ok) throw new Error("Failed to load habits");
-        const data = await res.json();
+        const data = await supabaseStorage.getHabitsForUser(user.uid);
 
         const normalized: Habit[] = data.map((h: any) => ({
-          id: h.id,
-          name: h.name,
-          description: h.description || "",
-          category: h.category || "Study",
-          frequency: (h.frequency || "daily") as Habit["frequency"],
-          targetCount: h.targetCount || 1,
-          color: h.color || HABIT_COLORS[0],
-          icon: h.icon || HABIT_ICONS[0],
-          streak: h.streak || 0,
+          ...h,
+          description: h.description || null,
+          category: h.category || null,
+          frequency: h.frequency as Habit["frequency"],
+          targetCount: h.targetCount ?? 1,
+          color: h.color || null,
+          icon: h.icon || null,
+          streak: h.streak ?? 0,
           completions: h.completions || {},
-          createdAt: h.createdAt || new Date().toISOString(),
-          isActive: h.isActive !== false,
+          createdAt: h.createdAt || null,
+          isActive: h.isActive ?? true,
         }));
 
         setHabits(normalized);
@@ -140,25 +135,31 @@ export default function HabitTracker() {
     const create = async () => {
       if (!user) return;
       try {
-        const res = await fetch("/api/habits", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-user-id": user.uid,
-          },
-          body: JSON.stringify({
-            name: newHabit.name,
-            description: newHabit.description || null,
-            category: newHabit.category,
-            frequency: newHabit.frequency,
-            targetCount: newHabit.targetCount,
-            color: newHabit.color,
-            icon: newHabit.icon,
-          }),
+        const created = await supabaseStorage.createHabit({
+          userId: user.uid,
+          name: newHabit.name,
+          description: newHabit.description || null,
+          category: newHabit.category,
+          frequency: newHabit.frequency,
+          targetCount: newHabit.targetCount,
+          color: newHabit.color,
+          icon: newHabit.icon,
+          streak: 0,
+          completions: {},
+          isActive: true,
         });
-        if (!res.ok) throw new Error("Failed to create habit");
-        const created: Habit = await res.json();
-        setHabits((prev) => [...prev, created]);
+        
+        // Map to Habit type
+        const mappedHabit: Habit = {
+          ...created,
+          frequency: created.frequency as 'daily' | 'weekly' | 'custom' | null,
+          targetCount: created.targetCount ?? 1,
+          streak: created.streak ?? 0,
+          isActive: created.isActive ?? true,
+          completions: (created.completions as { [date: string]: number }) || {}
+        };
+        
+        setHabits((prev) => [...prev, mappedHabit]);
       } catch (error) {
         console.error("Error creating habit:", error);
         toast({
@@ -193,18 +194,19 @@ export default function HabitTracker() {
       if (habit.id === habitId) {
         const completions = { ...habit.completions };
         const currentCount = completions[date] || 0;
+        const targetCount = habit.targetCount ?? 0;
         
-        if (currentCount >= habit.targetCount) {
+        if (currentCount >= targetCount) {
           completions[date] = 0;
         } else {
           completions[date] = currentCount + 1;
         }
 
         // Update streak
-        let newStreak = habit.streak;
-        if (completions[date] >= habit.targetCount) {
+        let newStreak = habit.streak ?? 0;
+        if (completions[date] >= targetCount) {
           if (isToday(parseISO(date))) {
-            newStreak = habit.streak + 1;
+            newStreak = (habit.streak ?? 0) + 1;
           }
         }
 
@@ -216,16 +218,9 @@ export default function HabitTracker() {
 
         // Persist to backend (fire and forget UI-wise)
         if (user) {
-          fetch(`/api/habits/${habitId}`, {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-              "x-user-id": user.uid,
-            },
-            body: JSON.stringify({
-              completions,
-              streak: newStreak,
-            }),
+          supabaseStorage.updateHabit(habitId, {
+            completions,
+            streak: newStreak,
           }).catch((err) => {
             console.error("Failed to update habit:", err);
           });
@@ -246,12 +241,7 @@ export default function HabitTracker() {
 
       if (user) {
         try {
-          await fetch(`/api/habits/${habitId}`, {
-            method: "DELETE",
-            headers: {
-              "x-user-id": user.uid,
-            },
-          });
+          await supabaseStorage.deleteHabit(habitId);
         } catch (error) {
           console.error("Failed to delete habit:", error);
         }
@@ -268,12 +258,14 @@ export default function HabitTracker() {
 
   const getHabitProgress = useCallback((habit: Habit, date: string) => {
     const completed = habit.completions[date] || 0;
-    return Math.min((completed / habit.targetCount) * 100, 100);
+    const target = habit.targetCount ?? 1;
+    return Math.min((completed / target) * 100, 100);
   }, []);
 
   const isHabitCompleted = useCallback((habit: Habit, date: string) => {
     const completed = habit.completions[date] || 0;
-    return completed >= habit.targetCount;
+    const target = habit.targetCount ?? 1;
+    return completed >= target;
   }, []);
 
   // Memoized callback handlers for HabitCard
@@ -453,7 +445,7 @@ export default function HabitTracker() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Best Streak</p>
-                <p className="text-2xl font-bold">{Math.max(...habits.map(h => h.streak), 0)}</p>
+                <p className="text-2xl font-bold">{Math.max(...habits.map(h => h.streak ?? 0), 0)}</p>
               </div>
               <Flame className="h-8 w-8 text-orange-600" />
             </div>
@@ -484,10 +476,22 @@ export default function HabitTracker() {
               const progress = getHabitProgress(habit, today);
               const completed = isHabitCompleted(habit, today);
 
+              // Map to expected format for HabitCard
+              const habitForCard = {
+                id: habit.id,
+                name: habit.name,
+                description: habit.description ?? "",
+                color: habit.color ?? "#3b82f6",
+                category: habit.category ?? "Other",
+                streak: habit.streak ?? 0,
+                targetCount: habit.targetCount ?? 1,
+                completions: habit.completions || {}
+              };
+
               return (
                 <HabitCard
                   key={habit.id}
-                  habit={habit}
+                  habit={habitForCard}
                   today={today}
                   progress={progress}
                   completed={completed}

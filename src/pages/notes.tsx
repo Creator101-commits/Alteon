@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { apiGet, apiPost, apiPut, apiDelete } from "@/lib/api";
+import { storage } from "@/lib/supabase-storage";
 import { 
   Select, 
   SelectContent, 
@@ -77,20 +77,16 @@ export default function NotesPage() {
       setIsLoading(true);
     }
     try {
-      console.log(' Loading notes...');
-      const response = await apiGet("/api/notes");
-      console.log(' Load notes response status:', response.status, response.ok);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log(' Loaded notes data:', data.length, 'notes');
-        setNotes(Array.isArray(data) ? data : []);
-        console.log(' Loaded notes:', data.length);
-      } else {
-        throw new Error(`Failed to fetch notes: ${response.status}`);
+      if (!user?.uid) {
+        setNotes([]);
+        return;
       }
+      console.log('🔍 Loading notes...');
+      const data = await storage.getNotesByUserId(user.uid);
+      console.log('📝 Loaded notes data:', data.length, 'notes');
+      setNotes(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error(' Load notes error:', error);
+      console.error('💥 Load notes error:', error);
       toast({
         title: "Error",
         description: `Failed to load notes: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -106,46 +102,39 @@ export default function NotesPage() {
 
   const loadClasses = async () => {
     try {
-      const response = await apiGet("/api/classes");
-      if (response.ok) {
-        const data = await response.json();
-        setClasses(Array.isArray(data) ? data : []);
-      } else {
-        // ignore error toast for classes
-      }
-    } catch {
+      if (!user?.uid) return;
+      const data = await storage.getClassesForUser(user.uid);
+      setClasses(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.warn('Failed to load classes:', error);
       setClasses([]);
     }
   };
 
-  const handleSaveNote = async (noteData: Partial<InsertNote>) => {
+  const handleSaveNote = async (noteData: Partial<InsertNote>): Promise<void> => {
     try {
-      console.log(' Saving note:', noteData);
-      const response = editingNote?.id 
-        ? await apiPut(`/api/notes/${editingNote.id}`, noteData)
-        : await apiPost("/api/notes", noteData);
-      
-      console.log(' Save response status:', response.status, response.ok);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (!user?.uid) {
+        throw new Error('User not authenticated');
       }
       
-      const savedNote = await response.json();
-      console.log(' Saved note:', savedNote);
+      console.log('💾 Saving note:', noteData);
+      const savedNote = editingNote?.id 
+        ? await storage.updateNote(editingNote.id, noteData)
+        : await storage.createNote({ ...noteData, userId: user.uid } as InsertNote);
+      
+      console.log('✅ Saved note:', savedNote);
       
       // Force refresh the notes list to ensure we have the latest data
-      console.log(' Refreshing notes list...');
+      console.log('🔄 Refreshing notes list...');
       await loadNotes(false);
-      console.log(' Notes list refreshed');
+      console.log('✅ Notes list refreshed');
       
       toast({
         title: "Success",
         description: `Note ${editingNote?.id ? "updated" : "created"} successfully`,
       });
-      return savedNote;
     } catch (error) {
-      console.error(' Save error:', error);
+      console.error('💥 Save error:', error);
       toast({
         title: "Error",
         description: `Failed to save note: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -161,8 +150,8 @@ export default function NotesPage() {
     );
     if (!confirmed) return;
     try {
-      const response = await apiDelete(`/api/notes/${noteId}`);
-      if (response.ok) {
+      const success = await storage.deleteNote(noteId);
+      if (success) {
         setNotes(prev => prev.filter(note => note.id !== noteId));
         toast({
           title: "Note Deleted",
@@ -171,7 +160,7 @@ export default function NotesPage() {
       } else {
         throw new Error("Failed to delete note");
       }
-    } catch {
+    } catch (error) {
       toast({
         title: "Delete Failed",
         description: "Could not delete the note. Please try again.",
@@ -182,17 +171,16 @@ export default function NotesPage() {
 
   const handleTogglePin = async (note: Note) => {
     try {
-      const response = await apiPut(`/api/notes/${note.id}`, { 
+      const updatedNote = await storage.updateNote(note.id, { 
         ...note, 
         isPinned: !note.isPinned,
         classId: note.classId || undefined 
       });
-      if (response.ok) {
-        const updatedNote = await response.json();
+      if (updatedNote) {
         setNotes(prev => prev.map(n => n.id === note.id ? updatedNote : n));
       }
-    } catch {
-      // ignore error
+    } catch (error) {
+      console.warn('Failed to toggle pin:', error);
     }
   };
 

@@ -1,11 +1,11 @@
 /**
  * Optimized data fetching hooks with caching and performance improvements
+ * Note: Uses React Query for caching, data fetched from Supabase storage
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { cachedRequest } from '@/lib/cache';
-import { makeAuthenticatedRequest } from '@/lib/api';
 
 // Generic optimized query hook
 export function useOptimizedQuery<T>(
