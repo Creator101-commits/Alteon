@@ -35,7 +35,6 @@ We pledge to make participation in our project a harassment-free experience for 
 - Node.js (v18 or higher)
 - npm (v8 or higher)
 - Git
-- Oracle Instant Client (for database connection)
 
 ### Setup
 
@@ -47,16 +46,13 @@ We pledge to make participation in our project a harassment-free experience for 
    ```
 
 2. **Install Dependencies**
-   ```bash
-   npm install
-   cd ProductivityHub/ProductivityHub
-   npm install
-   ```
+  ```bash
+  npm install
+  ```
 
 3. **Environment Setup**
-   - Copy `.env.example` to `.env`
-   - Fill in the required environment variables
-   - See [SETUP.md](ProductivityHub/ProductivityHub/docs/SETUP.md) for detailed instructions
+  - Copy `.env.example` to `.env`
+  - Fill in Supabase, Firebase, Groq, and Google keys (see `.env.example`)
 
 4. **Create a Branch**
    ```bash
@@ -103,10 +99,10 @@ Types:
 - `test`: Adding missing tests or correcting existing tests
 - `chore`: Changes to the build process or auxiliary tools
 
-Examples:
+examples:
 ```
 feat(auth): add Google OAuth integration
-fix(database): resolve Oracle connection timeout
+fix(database): resolve Supabase connection timeout
 docs(api): update endpoint documentation
 ```
 
@@ -438,7 +434,6 @@ Add any other context or screenshots about the feature request here.
 - Prettier
 - GitLens
 - REST Client
-- Oracle Developer Tools
 
 ### Useful Commands
 

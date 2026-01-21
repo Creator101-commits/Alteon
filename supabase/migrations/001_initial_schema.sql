@@ -1,6 +1,6 @@
 -- ================================================================
 -- Alteon PostgreSQL Schema for Supabase
--- Migrated from Oracle Cloud Database
+-- Initial Supabase schema
 -- Date: January 19, 2026
 -- ================================================================
 

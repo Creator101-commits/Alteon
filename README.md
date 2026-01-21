@@ -46,11 +46,9 @@ The system follows a modern serverless data flow pattern:
 
 1. **User Interaction**: Users interact with the React frontend hosted on Vercel
 2. **Authentication**: Firebase handles user authentication and session management
-3. **API Communication**: Frontend communicates with the Express.js backend via RESTful APIs
-2. **Firebase Authentication**: Users authenticate via Google SSO through Firebase
-3. **API Calls**: Frontend makes requests to Vercel serverless functions and directly to Supabase
+3. **API Calls**: Frontend uses relative `/api/*` routes backed by Vercel serverless functions and direct Supabase client calls for trusted operations
 4. **External Services**: Serverless functions integrate with AI services (Groq) and Google APIs
-5. **Data Persistence**: All application data stored in Supabase PostgreSQL with automatic backups
+5. **Data Persistence**: All application data is stored in Supabase PostgreSQL with automatic backups
 6. **Real-time Updates**: React Query provides optimistic updates and automatic cache invalidation
 
 ### Infrastructure Benefits
@@ -174,18 +172,16 @@ The system follows a modern serverless data flow pattern:
 - **React Hook Form** for efficient form management
 
 ### Backend
-- **Node.js** with Express.js
+- **Vercel Serverless Functions** for API routes under `/api/*`
 - **TypeScript** for type safety
-- **Drizzle ORM** for database operations
-- **Oracle Cloud Database** (primary) with PostgreSQL fallback
-- **Firebase Authentication** for user management
-- **RESTful API** with comprehensive endpoints
+- **Drizzle ORM** for schema management
+- **Supabase client** for database access
+- **Firebase Authentication** for user identity (via headers)
 
 ### Database
-- **Oracle Cloud Database** (primary)
-- **PostgreSQL** (fallback/development)
-- **Comprehensive schema** for users, notes, assignments, classes, and more
-- **Data migration support** between database systems
+- **Supabase PostgreSQL** as the single source of truth
+- **Supabase Storage** for files/assets
+- **Drizzle migrations** committed in `supabase/migrations/`
 
 ### Integrations
 - **Google Calendar API** for two-way calendar synchronization with auto-sync
@@ -193,7 +189,7 @@ The system follows a modern serverless data flow pattern:
 - **Microsoft Graph API** for Outlook calendar integration
 - **Groq AI** for intelligent features (llama-3.1-8b-instant, llama-3.1-70b-versatile)
 - **Firebase Authentication** for secure user management with Google SSO
-- **Firebase Firestore** for real-time data synchronization
+- **Supabase** for database and storage
 - **YouTube API** for video content summarization
 - **PDF.js** for PDF document processing and summarization
 
@@ -202,7 +198,6 @@ The system follows a modern serverless data flow pattern:
 ### Prerequisites
 - Node.js 18+ 
 - npm 8+
-- Oracle Instant Client (for full database features)
 - Git
 
 ### Installation
@@ -215,62 +210,39 @@ The system follows a modern serverless data flow pattern:
 
 2. **Install dependencies**
    ```bash
-   # Install root dependencies
-   npm install
-   
-   # Navigate to main application
-   cd ProductivityHub/ProductivityHub
-   
-   # Install application dependencies
    npm install
    ```
 
 3. **Environment Setup**
-   Create a `.env` file in `ProductivityHub/ProductivityHub/`:
+   Create `.env` in repo root (see `.env.example`):
    ```env
-   # Database Configuration
-   ORACLE_USER=your_oracle_username
-   ORACLE_PASSWORD=your_oracle_password
-   ORACLE_CONNECTION_STRING=your_oracle_connection_string
-   ORACLE_WALLET_PATH=./server/oracle_wallet
-   
-   # Alternative: PostgreSQL
-   DATABASE_URL=postgresql://username:password@localhost:5432/alteon
-   
-   # AI Services
-   GROQ_API_KEY=your_groq_api_key
-   
-   # Firebase Configuration
-   FIREBASE_API_KEY=your_firebase_api_key
-   FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-   FIREBASE_PROJECT_ID=your_project_id
-   FIREBASE_STORAGE_BUCKET=your_project.appspot.com
-   FIREBASE_MESSAGING_SENDER_ID=123456789
-   FIREBASE_APP_ID=1:123456789:web:abcdef
-   
+   # Supabase
+   VITE_SUPABASE_URL=https://your-project.supabase.co
+   VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+   DATABASE_URL=postgresql://postgres:[PASSWORD]@db.your-project.supabase.co:5432/postgres
+
+   # Firebase
+   VITE_FIREBASE_API_KEY=your_firebase_api_key
+   VITE_FIREBASE_PROJECT_ID=your_firebase_project_id
+   VITE_FIREBASE_APP_ID=your_firebase_app_id
+
+   # Groq
+   VITE_GROQ_API_KEY=your_groq_api_key
+
    # Google APIs
-   GOOGLE_CLIENT_ID=your_google_client_id
-   GOOGLE_CLIENT_SECRET=your_google_client_secret
-   GOOGLE_REDIRECT_URI=http://localhost:5173/auth/google/callback
-   
-   # Server Configuration
-   PORT=5000
-   NODE_ENV=development
+   VITE_GOOGLE_CLIENT_ID=your_google_client_id
+   VITE_GOOGLE_API_KEY=your_google_api_key
    ```
 
 4. **Start Development Server**
    ```bash
-   # Start both frontend and backend
    npm run dev
-   
-   # Or start them separately
-   npm run dev:client  # Frontend (port 5173)
-   npm run dev:server  # Backend (port 5000)
+   # For Vercel-style local testing with API routes
+   # vercel dev (requires Vercel CLI)
    ```
 
 5. **Access the Application**
-   - Frontend: http://localhost:5173
-   - Backend API: http://localhost:5000/api
+   - Frontend & API: http://localhost:5173 (API served under /api/*)
 
 ## Usage
 
@@ -322,24 +294,15 @@ The system follows a modern serverless data flow pattern:
 
 ### Project Structure
 ```
-ProductivityHub/ProductivityHub/
-├── src/
-│   ├── components/          # Reusable UI components
-│   │   ├── ui/             # Base UI components (shadcn/ui)
-│   │   ├── charts/         # Chart components
-│   │   └── tools/          # Feature-specific components
-│   ├── pages/              # Page components
-│   ├── contexts/           # React contexts
-│   ├── hooks/              # Custom React hooks
-│   └── lib/                # Utility libraries
-├── server/
-│   ├── routes.ts           # API routes
-│   ├── oracle-storage.ts   # Database operations
-│   ├── oracle-database.ts  # Database connection
-│   └── migrations/         # Database schemas
-├── shared/
-│   └── schema.ts           # Shared TypeScript schemas
-└── docs/                   # Documentation
+Alteon/
+├── src/                   # React app (components, pages, contexts, hooks)
+├── api/                   # Vercel serverless API routes (/api/*)
+├── lib/                   # Shared libraries (HAC scraping, utilities)
+├── shared/                # Shared schema definitions
+├── supabase/migrations/   # Drizzle SQL migrations for Supabase
+├── docs/                  # Documentation
+├── scripts/               # Tooling scripts
+└── images/, sounds/, etc. # Static assets
 ```
 
 ### Available Scripts
@@ -350,16 +313,11 @@ ProductivityHub/ProductivityHub/
 - `npm run db:push` - Push database schema changes
 
 ### Database Setup
-1. **Oracle Cloud Database** (Recommended)
-   - Create Oracle Cloud account
-   - Set up Autonomous Database
-   - Download wallet files
-   - Configure connection strings
-
-2. **PostgreSQL** (Alternative)
-   - Install PostgreSQL locally
-   - Create database named `alteon`
-   - Run migrations
+1. **Supabase (PostgreSQL)**
+   - Create a Supabase project
+   - Copy project `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` into `.env`
+   - Copy `DATABASE_URL` from Supabase (Settings > Database) for Drizzle
+   - Run `npm run db:push` or apply SQL in `supabase/migrations/`
 
 ## Configuration
 
