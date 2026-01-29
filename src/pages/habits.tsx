@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -196,31 +196,22 @@ export default function HabitTracker() {
         const currentCount = completions[date] || 0;
         const targetCount = habit.targetCount ?? 0;
         
+        // Toggle between 0 and target count (complete or incomplete)
         if (currentCount >= targetCount) {
           completions[date] = 0;
         } else {
-          completions[date] = currentCount + 1;
-        }
-
-        // Update streak
-        let newStreak = habit.streak ?? 0;
-        if (completions[date] >= targetCount) {
-          if (isToday(parseISO(date))) {
-            newStreak = (habit.streak ?? 0) + 1;
-          }
+          completions[date] = targetCount;
         }
 
         const updatedHabit: Habit = {
           ...habit,
-          completions,
-          streak: newStreak
+          completions
         };
 
-        // Persist to backend (fire and forget UI-wise)
+        // Persist to backend
         if (user) {
           supabaseStorage.updateHabit(habitId, {
             completions,
-            streak: newStreak,
           }).catch((err) => {
             console.error("Failed to update habit:", err);
           });
@@ -230,6 +221,7 @@ export default function HabitTracker() {
       }
       return habit;
     });
+    
     setHabits(updatedHabits);
   };
 
@@ -311,6 +303,9 @@ export default function HabitTracker() {
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>Create New Habit</DialogTitle>
+              <DialogDescription>
+                Set up a new daily habit to track your progress and build consistency.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>
@@ -444,10 +439,13 @@ export default function HabitTracker() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Best Streak</p>
-                <p className="text-2xl font-bold">{Math.max(...habits.map(h => h.streak ?? 0), 0)}</p>
+                <p className="text-sm font-medium text-muted-foreground">Completion Rate</p>
+                <p className="text-2xl font-bold">{stats.percentage}%</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {stats.completed} of {stats.total} today
+                </p>
               </div>
-              <Flame className="h-8 w-8 text-orange-600" />
+              <CheckCircle2 className="h-8 w-8 text-green-600" />
             </div>
           </CardContent>
         </Card>

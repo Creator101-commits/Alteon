@@ -2,7 +2,7 @@ import React from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { motion } from 'framer-motion';
-import { Calendar, CheckSquare, Copy, Edit, Trash2, MoreHorizontal } from 'lucide-react';
+import { Calendar, CheckSquare, Copy, Edit, Trash2, MoreHorizontal, Circle, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -22,7 +22,7 @@ interface CardProps {
 }
 
 export const Card: React.FC<CardProps> = ({ card }) => {
-  const { deleteCard } = useBoardContext();
+  const { deleteCard, updateCard, moveCard, lists } = useBoardContext();
   const { openCardModal } = useUIContext();
 
   const {
@@ -44,6 +44,50 @@ export const Card: React.FC<CardProps> = ({ card }) => {
     e.stopPropagation();
     if (window.confirm('Delete this card?')) {
       await deleteCard(card.id);
+    }
+  };
+
+  const handleToggleComplete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newCompletedState = !card.isCompleted;
+    
+    // Find the "Completed" list
+    const completedList = lists.find(l => l.title.toLowerCase() === 'completed');
+    
+    if (newCompletedState && completedList && card.listId !== completedList.id) {
+      // Save the original list ID in the database before moving to Completed
+      await updateCard(card.id, { 
+        isCompleted: true, 
+        originalListId: card.listId 
+      });
+      await moveCard(card.id, completedList.id, 0);
+    } else if (!newCompletedState) {
+      // Get the original list ID from the card data (stored in database)
+      const originalListId = card.originalListId;
+      
+      // Mark as incomplete and clear originalListId
+      await updateCard(card.id, { 
+        isCompleted: false,
+        originalListId: null 
+      });
+      
+      // Move back to original list if we have it stored
+      if (originalListId) {
+        // Check if the original list still exists
+        const originalList = lists.find(l => l.id === originalListId);
+        if (originalList) {
+          await moveCard(card.id, originalListId, 0);
+        }
+      } else {
+        // If no original list stored, move to the first non-completed list
+        const firstList = lists.find(l => l.title.toLowerCase() !== 'completed');
+        if (firstList && card.listId !== firstList.id) {
+          await moveCard(card.id, firstList.id, 0);
+        }
+      }
+    } else {
+      // Just toggle the state
+      await updateCard(card.id, { isCompleted: newCompletedState });
     }
   };
 
@@ -89,13 +133,25 @@ export const Card: React.FC<CardProps> = ({ card }) => {
         <div className="absolute left-0 top-0 bottom-0 w-1 bg-green-500 rounded-l-md" />
       )}
 
-      {/* Title */}
-      <h4 className="font-medium mb-2 pr-6 line-clamp-2">
-        {card.title}
-      </h4>
+      {/* Title with completion circle */}
+      <div className="flex items-start gap-2">
+        <button
+          onClick={handleToggleComplete}
+          className="flex-shrink-0 mt-0.5 hover:scale-110 transition-transform"
+        >
+          {card.isCompleted ? (
+            <CheckCircle2 className="h-5 w-5 text-green-500" />
+          ) : (
+            <Circle className="h-5 w-5 text-muted-foreground hover:text-primary" />
+          )}
+        </button>
+        <h4 className={`font-medium pr-6 line-clamp-2 ${card.isCompleted ? 'line-through text-muted-foreground' : ''}`}>
+          {card.title}
+        </h4>
+      </div>
 
       {/* Metadata */}
-      <div className="flex flex-wrap gap-1.5 mb-2">
+      <div className="flex flex-wrap gap-1.5 mt-2 ml-7">
         {/* Due date badge */}
         {card.dueDate && dueDateStatus && (
           <Badge
@@ -113,14 +169,6 @@ export const Card: React.FC<CardProps> = ({ card }) => {
         {/* Labels */}
         {/* TODO: Add when labels are implemented */}
       </div>
-
-      {/* Completion indicator */}
-      {card.isCompleted && (
-        <div className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
-          <CheckSquare className="h-3 w-3" />
-          <span>Completed</span>
-        </div>
-      )}
 
       {/* Hover actions */}
       <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">

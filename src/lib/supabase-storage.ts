@@ -36,6 +36,10 @@ import type {
   InsertLabel,
   QuickTask,
   InsertQuickTask,
+  UserStats,
+  InsertUserStats,
+  UserAchievement,
+  InsertUserAchievement,
 } from '@shared/schema';
 
 /**
@@ -475,26 +479,31 @@ export class SupabaseStorage {
   }
 
   async createFlashcard(flashcard: InsertFlashcard): Promise<Flashcard> {
+    // Only include core columns that are guaranteed to exist
+    const insertData: any = {
+      user_id: flashcard.userId,
+      deck_id: flashcard.deckId || null,
+      class_id: flashcard.classId || null,
+      card_type: flashcard.cardType || 'basic',
+      front: flashcard.front,
+      back: flashcard.back,
+      difficulty: flashcard.difficulty || 'medium',
+      review_count: flashcard.reviewCount || 0,
+      correct_count: flashcard.correctCount || 0,
+      incorrect_count: flashcard.incorrectCount || 0,
+    };
+
+    // Only add optional columns if they have values (these might not exist in older schemas)
+    if (flashcard.clozeText) insertData.cloze_text = flashcard.clozeText;
+    if (flashcard.clozeIndex) insertData.cloze_index = flashcard.clozeIndex;
+    if (flashcard.lastReviewed) insertData.last_reviewed = flashcard.lastReviewed;
+    if (flashcard.easeFactor !== undefined) insertData.ease_factor = flashcard.easeFactor;
+    if (flashcard.interval !== undefined) insertData.interval = flashcard.interval;
+    if (flashcard.maturityLevel) insertData.maturity_level = flashcard.maturityLevel;
+
     const { data, error } = await supabase
       .from('flashcards')
-      .insert({
-        user_id: flashcard.userId,
-        deck_id: flashcard.deckId || null,
-        class_id: flashcard.classId || null,
-        card_type: flashcard.cardType || 'basic',
-        front: flashcard.front,
-        back: flashcard.back,
-        cloze_text: flashcard.clozeText || null,
-        cloze_index: flashcard.clozeIndex || null,
-        difficulty: flashcard.difficulty || 'medium',
-        last_reviewed: flashcard.lastReviewed || null,
-        review_count: flashcard.reviewCount || 0,
-        correct_count: flashcard.correctCount || 0,
-        incorrect_count: flashcard.incorrectCount || 0,
-        ease_factor: flashcard.easeFactor || 250,
-        interval: flashcard.interval || 0,
-        maturity_level: flashcard.maturityLevel || 'new',
-      })
+      .insert(insertData)
       .select()
       .single();
 
@@ -725,163 +734,55 @@ export class SupabaseStorage {
   }
 
   // ========================================
-  // MOOD ENTRY METHODS
+  // MOOD ENTRY METHODS (Table dropped - returning empty)
   // ========================================
 
   async getMoodEntriesByUserId(userId: string): Promise<MoodEntry[]> {
-    const { data, error } = await supabase
-      .from('mood_entries')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      // Silently handle missing table errors (code 42P01 or 400 status)
-      if (error.code === '42P01' || error.message?.includes('does not exist')) {
-        return [];
-      }
-      // Only log unexpected errors
-      console.warn('Mood entries fetch issue:', error.message);
-      return [];
-    }
-
-    return data as MoodEntry[];
+    // Table was dropped in migration 005 - return empty array
+    return [];
   }
 
   async createMoodEntry(entry: InsertMoodEntry): Promise<MoodEntry> {
-    const { data, error } = await supabase
-      .from('mood_entries')
-      .insert({
-        user_id: entry.userId,
-        mood: entry.mood,
-        notes: entry.notes || null,
-        entry_date: entry.date || new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error creating mood entry:', error);
-      throw new Error(`Failed to create mood entry: ${error.message}`);
-    }
-
-    return data as MoodEntry;
+    // Table was dropped - throw informative error
+    throw new Error('Mood entries feature has been removed');
   }
 
   // ========================================
-  // JOURNAL ENTRY METHODS
+  // JOURNAL ENTRY METHODS (Table dropped - returning empty)
   // ========================================
 
   async getJournalEntriesByUserId(userId: string): Promise<JournalEntry[]> {
-    const { data, error } = await supabase
-      .from('journal_entries')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      // Silently handle missing table errors (code 42P01 or 400 status)
-      if (error.code === '42P01' || error.message?.includes('does not exist')) {
-        return [];
-      }
-      // Only log unexpected errors
-      console.warn('Journal entries fetch issue:', error.message);
-      return [];
-    }
-
-    return data as JournalEntry[];
+    // Table was dropped in migration 005 - return empty array
+    return [];
   }
 
   async createJournalEntry(entry: InsertJournalEntry): Promise<JournalEntry> {
-    const { data, error } = await supabase
-      .from('journal_entries')
-      .insert({
-        user_id: entry.userId,
-        content: entry.content,
-        entry_date: entry.date || new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error creating journal entry:', error);
-      throw new Error(`Failed to create journal entry: ${error.message}`);
-    }
-
-    return data as JournalEntry;
+    // Table was dropped - throw informative error
+    throw new Error('Journal entries feature has been removed');
   }
 
   async updateJournalEntry(id: string, entry: Partial<InsertJournalEntry>): Promise<JournalEntry | undefined> {
-    const updates: any = {};
-    if (entry.content !== undefined) updates.content = entry.content;
-    if (entry.date !== undefined) updates.date = entry.date;
-
-    const { data, error } = await supabase
-      .from('journal_entries')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating journal entry:', error);
-      return undefined;
-    }
-
-    return data as JournalEntry;
+    // Table was dropped
+    return undefined;
   }
 
   async deleteJournalEntry(id: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('journal_entries')
-      .delete()
-      .eq('id', id);
-
-    if (error) {
-      console.error('Error deleting journal entry:', error);
-      return false;
-    }
-
-    return true;
+    // Table was dropped
+    return false;
   }
 
   // ========================================
-  // POMODORO SESSION METHODS
+  // POMODORO SESSION METHODS (Table dropped - returning empty)
   // ========================================
 
   async getPomodoroSessionsByUserId(userId: string): Promise<PomodoroSession[]> {
-    const { data, error } = await supabase
-      .from('pomodoro_sessions')
-      .select('*')
-      .eq('user_id', userId)
-      .order('completed_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching pomodoro sessions:', error);
-      return [];
-    }
-
-    return data as PomodoroSession[];
+    // Table was dropped in migration 005 - return empty array
+    return [];
   }
 
   async createPomodoroSession(session: InsertPomodoroSession): Promise<PomodoroSession> {
-    const { data, error } = await supabase
-      .from('pomodoro_sessions')
-      .insert({
-        user_id: session.userId,
-        duration: session.duration,
-        type: session.type || 'work',
-        completed_at: session.completedAt || new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error creating pomodoro session:', error);
-      throw new Error(`Failed to create pomodoro session: ${error.message}`);
-    }
-
-    return data as PomodoroSession;
+    // Table was dropped - throw informative error
+    throw new Error('Pomodoro sessions feature has been removed');
   }
 
   // ========================================
@@ -1139,7 +1040,15 @@ export class SupabaseStorage {
       return [];
     }
 
-    return data as TodoList[];
+    // Map snake_case to camelCase
+    return (data || []).map(list => ({
+      id: list.id,
+      boardId: list.board_id,
+      title: list.title,
+      position: list.position,
+      isArchived: list.is_archived,
+      createdAt: list.created_at,
+    })) as TodoList[];
   }
 
   async createList(list: InsertTodoList): Promise<TodoList> {
@@ -1159,7 +1068,15 @@ export class SupabaseStorage {
       throw new Error(`Failed to create list: ${error.message}`);
     }
 
-    return data as TodoList;
+    // Map snake_case to camelCase
+    return {
+      id: data.id,
+      boardId: data.board_id,
+      title: data.title,
+      position: data.position,
+      isArchived: data.is_archived,
+      createdAt: data.created_at,
+    } as TodoList;
   }
 
   async updateList(id: string, list: Partial<InsertTodoList>): Promise<TodoList | undefined> {
@@ -1252,7 +1169,21 @@ export class SupabaseStorage {
       return [];
     }
 
-    return data as Card[];
+    // Map snake_case to camelCase
+    return (data || []).map(card => ({
+      id: card.id,
+      userId: card.user_id,
+      listId: card.list_id,
+      originalListId: card.original_list_id,
+      title: card.title,
+      description: card.description,
+      position: card.position,
+      dueDate: card.due_date,
+      isCompleted: card.is_completed,
+      isArchived: card.is_archived,
+      createdAt: card.created_at,
+      updatedAt: card.updated_at,
+    })) as Card[];
   }
 
   async getInboxCards(userId: string): Promise<Card[]> {
@@ -1269,7 +1200,21 @@ export class SupabaseStorage {
       return [];
     }
 
-    return data as Card[];
+    // Map snake_case to camelCase
+    return (data || []).map(card => ({
+      id: card.id,
+      userId: card.user_id,
+      listId: card.list_id,
+      originalListId: card.original_list_id,
+      title: card.title,
+      description: card.description,
+      position: card.position,
+      dueDate: card.due_date,
+      isCompleted: card.is_completed,
+      isArchived: card.is_archived,
+      createdAt: card.created_at,
+      updatedAt: card.updated_at,
+    })) as Card[];
   }
 
   async getCard(id: string): Promise<Card | undefined> {
@@ -1284,7 +1229,21 @@ export class SupabaseStorage {
       return undefined;
     }
 
-    return data as Card;
+    // Map snake_case to camelCase
+    return {
+      id: data.id,
+      userId: data.user_id,
+      listId: data.list_id,
+      originalListId: data.original_list_id,
+      title: data.title,
+      description: data.description,
+      position: data.position,
+      dueDate: data.due_date,
+      isCompleted: data.is_completed,
+      isArchived: data.is_archived,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    } as Card;
   }
 
   async createCard(card: InsertCard): Promise<Card> {
@@ -1293,6 +1252,7 @@ export class SupabaseStorage {
       .insert({
         user_id: card.userId,
         list_id: card.listId || null,
+        original_list_id: card.originalListId || null,
         title: card.title,
         description: card.description || null,
         position: card.position || 0,
@@ -1308,7 +1268,21 @@ export class SupabaseStorage {
       throw new Error(`Failed to create card: ${error.message}`);
     }
 
-    return data as Card;
+    // Map snake_case to camelCase
+    return {
+      id: data.id,
+      userId: data.user_id,
+      listId: data.list_id,
+      originalListId: data.original_list_id,
+      title: data.title,
+      description: data.description,
+      position: data.position,
+      dueDate: data.due_date,
+      isCompleted: data.is_completed,
+      isArchived: data.is_archived,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    } as Card;
   }
 
   async updateCard(id: string, card: Partial<InsertCard>): Promise<Card | undefined> {
@@ -1316,6 +1290,7 @@ export class SupabaseStorage {
     if (card.title !== undefined) updates.title = card.title;
     if (card.description !== undefined) updates.description = card.description;
     if (card.listId !== undefined) updates.list_id = card.listId;
+    if (card.originalListId !== undefined) updates.original_list_id = card.originalListId;
     if (card.position !== undefined) updates.position = card.position;
     if (card.dueDate !== undefined) updates.due_date = card.dueDate;
     if (card.isCompleted !== undefined) updates.is_completed = card.isCompleted;
@@ -1333,7 +1308,21 @@ export class SupabaseStorage {
       return undefined;
     }
 
-    return data as Card;
+    // Map snake_case to camelCase
+    return {
+      id: data.id,
+      userId: data.user_id,
+      listId: data.list_id,
+      originalListId: data.original_list_id,
+      title: data.title,
+      description: data.description,
+      position: data.position,
+      dueDate: data.due_date,
+      isCompleted: data.is_completed,
+      isArchived: data.is_archived,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    } as Card;
   }
 
   async deleteCard(id: string): Promise<boolean> {
@@ -1609,6 +1598,320 @@ export class SupabaseStorage {
     }
 
     return true;
+  }
+
+  // ========================================
+  // USER STATS METHODS (for gamification)
+  // ========================================
+
+  async getUserStats(userId: string): Promise<UserStats | undefined> {
+    const { data, error } = await supabase
+      .from('user_stats')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return undefined; // Not found
+      console.error('Error fetching user stats:', error);
+      return undefined;
+    }
+
+    return {
+      id: data.id,
+      userId: data.user_id,
+      totalTasksCompleted: data.total_tasks_completed,
+      totalStudyMinutes: data.total_study_minutes,
+      totalAssignmentsCompleted: data.total_assignments_completed,
+      totalNotesCreated: data.total_notes_created,
+      currentStreak: data.current_streak,
+      longestStreak: data.longest_streak,
+      lastActivityDate: data.last_activity_date,
+      createdAt: data.created_at,
+      updatedAt: data.updated_at,
+    } as UserStats;
+  }
+
+  async createOrUpdateUserStats(userId: string, stats: Partial<InsertUserStats>): Promise<UserStats | undefined> {
+    // First check if stats exist
+    const existing = await this.getUserStats(userId);
+    
+    if (existing) {
+      // Update existing stats
+      const updates: any = {};
+      if (stats.totalTasksCompleted !== undefined) updates.total_tasks_completed = stats.totalTasksCompleted;
+      if (stats.totalStudyMinutes !== undefined) updates.total_study_minutes = stats.totalStudyMinutes;
+      if (stats.totalAssignmentsCompleted !== undefined) updates.total_assignments_completed = stats.totalAssignmentsCompleted;
+      if (stats.totalNotesCreated !== undefined) updates.total_notes_created = stats.totalNotesCreated;
+      if (stats.currentStreak !== undefined) updates.current_streak = stats.currentStreak;
+      if (stats.longestStreak !== undefined) updates.longest_streak = stats.longestStreak;
+      if (stats.lastActivityDate !== undefined) updates.last_activity_date = stats.lastActivityDate;
+      updates.updated_at = new Date().toISOString();
+
+      const { data, error } = await supabase
+        .from('user_stats')
+        .update(updates)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating user stats:', error);
+        return undefined;
+      }
+
+      return {
+        id: data.id,
+        userId: data.user_id,
+        totalTasksCompleted: data.total_tasks_completed,
+        totalStudyMinutes: data.total_study_minutes,
+        totalAssignmentsCompleted: data.total_assignments_completed,
+        totalNotesCreated: data.total_notes_created,
+        currentStreak: data.current_streak,
+        longestStreak: data.longest_streak,
+        lastActivityDate: data.last_activity_date,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+      } as UserStats;
+    } else {
+      // Create new stats
+      const { data, error } = await supabase
+        .from('user_stats')
+        .insert({
+          user_id: userId,
+          total_tasks_completed: stats.totalTasksCompleted || 0,
+          total_study_minutes: stats.totalStudyMinutes || 0,
+          total_assignments_completed: stats.totalAssignmentsCompleted || 0,
+          total_notes_created: stats.totalNotesCreated || 0,
+          current_streak: stats.currentStreak || 0,
+          longest_streak: stats.longestStreak || 0,
+          last_activity_date: stats.lastActivityDate || null,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating user stats:', error);
+        return undefined;
+      }
+
+      return {
+        id: data.id,
+        userId: data.user_id,
+        totalTasksCompleted: data.total_tasks_completed,
+        totalStudyMinutes: data.total_study_minutes,
+        totalAssignmentsCompleted: data.total_assignments_completed,
+        totalNotesCreated: data.total_notes_created,
+        currentStreak: data.current_streak,
+        longestStreak: data.longest_streak,
+        lastActivityDate: data.last_activity_date,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+      } as UserStats;
+    }
+  }
+
+  async incrementUserStat(userId: string, stat: keyof InsertUserStats, amount: number = 1): Promise<UserStats | undefined> {
+    const existing = await this.getUserStats(userId);
+    const currentValue = existing ? (existing[stat as keyof UserStats] as number || 0) : 0;
+    return this.createOrUpdateUserStats(userId, { [stat]: currentValue + amount } as Partial<InsertUserStats>);
+  }
+
+  // ========================================
+  // USER ACHIEVEMENTS METHODS
+  // ========================================
+
+  async getUserAchievements(userId: string): Promise<UserAchievement[]> {
+    const { data, error } = await supabase
+      .from('user_achievements')
+      .select('*')
+      .eq('user_id', userId)
+      .order('unlocked_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching user achievements:', error);
+      return [];
+    }
+
+    return (data || []).map(achievement => ({
+      id: achievement.id,
+      userId: achievement.user_id,
+      achievementId: achievement.achievement_id,
+      unlockedAt: achievement.unlocked_at,
+      progress: achievement.progress,
+      metadata: achievement.metadata,
+    })) as UserAchievement[];
+  }
+
+  async getAchievement(userId: string, achievementId: string): Promise<UserAchievement | undefined> {
+    const { data, error } = await supabase
+      .from('user_achievements')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('achievement_id', achievementId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') return undefined; // Not found
+      console.error('Error fetching achievement:', error);
+      return undefined;
+    }
+
+    return {
+      id: data.id,
+      userId: data.user_id,
+      achievementId: data.achievement_id,
+      unlockedAt: data.unlocked_at,
+      progress: data.progress,
+      metadata: data.metadata,
+    } as UserAchievement;
+  }
+
+  async unlockAchievement(userId: string, achievementId: string, metadata: any = {}): Promise<UserAchievement | undefined> {
+    // Check if already unlocked
+    const existing = await this.getAchievement(userId, achievementId);
+    if (existing) return existing;
+
+    const { data, error } = await supabase
+      .from('user_achievements')
+      .insert({
+        user_id: userId,
+        achievement_id: achievementId,
+        progress: 100,
+        metadata,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error unlocking achievement:', error);
+      return undefined;
+    }
+
+    return {
+      id: data.id,
+      userId: data.user_id,
+      achievementId: data.achievement_id,
+      unlockedAt: data.unlocked_at,
+      progress: data.progress,
+      metadata: data.metadata,
+    } as UserAchievement;
+  }
+
+  async updateAchievementProgress(userId: string, achievementId: string, progress: number): Promise<UserAchievement | undefined> {
+    const existing = await this.getAchievement(userId, achievementId);
+    
+    if (existing) {
+      // Update progress
+      const { data, error } = await supabase
+        .from('user_achievements')
+        .update({ progress })
+        .eq('user_id', userId)
+        .eq('achievement_id', achievementId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error updating achievement progress:', error);
+        return undefined;
+      }
+
+      return {
+        id: data.id,
+        userId: data.user_id,
+        achievementId: data.achievement_id,
+        unlockedAt: data.unlocked_at,
+        progress: data.progress,
+        metadata: data.metadata,
+      } as UserAchievement;
+    } else {
+      // Create with progress
+      const { data, error } = await supabase
+        .from('user_achievements')
+        .insert({
+          user_id: userId,
+          achievement_id: achievementId,
+          progress,
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error creating achievement with progress:', error);
+        return undefined;
+      }
+
+      return {
+        id: data.id,
+        userId: data.user_id,
+        achievementId: data.achievement_id,
+        unlockedAt: data.unlocked_at,
+        progress: data.progress,
+        metadata: data.metadata,
+      } as UserAchievement;
+    }
+  }
+
+  // ========================================
+  // USER SETTINGS METHODS (dashboard widgets, notifications, etc.)
+  // ========================================
+
+  async updateUserSettings(userId: string, settings: {
+    dashboardWidgets?: any[];
+    notificationSettings?: any;
+    gpaExcludedCourses?: string[];
+    preferences?: any;
+  }): Promise<User | undefined> {
+    const updates: any = {};
+    if (settings.dashboardWidgets !== undefined) updates.dashboard_widgets = settings.dashboardWidgets;
+    if (settings.notificationSettings !== undefined) updates.notification_settings = settings.notificationSettings;
+    if (settings.gpaExcludedCourses !== undefined) updates.gpa_excluded_courses = settings.gpaExcludedCourses;
+    if (settings.preferences !== undefined) updates.preferences = settings.preferences;
+    updates.updated_at = new Date().toISOString();
+
+    const { data, error } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating user settings:', error);
+      return undefined;
+    }
+
+    return data as User;
+  }
+
+  async getDashboardWidgets(userId: string): Promise<any[]> {
+    const user = await this.getUser(userId);
+    return (user?.dashboardWidgets as any[]) || [];
+  }
+
+  async saveDashboardWidgets(userId: string, widgets: any[]): Promise<boolean> {
+    const result = await this.updateUserSettings(userId, { dashboardWidgets: widgets });
+    return !!result;
+  }
+
+  async getNotificationSettings(userId: string): Promise<any> {
+    const user = await this.getUser(userId);
+    return (user?.notificationSettings as any) || {};
+  }
+
+  async saveNotificationSettings(userId: string, settings: any): Promise<boolean> {
+    const result = await this.updateUserSettings(userId, { notificationSettings: settings });
+    return !!result;
+  }
+
+  async getGpaExcludedCourses(userId: string): Promise<string[]> {
+    const user = await this.getUser(userId);
+    return (user?.gpaExcludedCourses as string[]) || [];
+  }
+
+  async saveGpaExcludedCourses(userId: string, courses: string[]): Promise<boolean> {
+    const result = await this.updateUserSettings(userId, { gpaExcludedCourses: courses });
+    return !!result;
   }
 
   // ========================================

@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { SyncFeatureWrapper } from '@/components/SyncFeatureWrapper';
 import { useGoogleClassroom } from '@/hooks/useGoogleClassroom';
 import { useAuth } from '@/contexts/AuthContext';
@@ -137,6 +137,9 @@ export default function Classes() {
           <DialogContent className="sm:max-w-[600px]">
               <DialogHeader>
                 <DialogTitle>Create New Class</DialogTitle>
+                <DialogDescription>
+                  Add a new class to organize your assignments and track your academic progress.
+                </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">

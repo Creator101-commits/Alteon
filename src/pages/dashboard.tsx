@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'wouter';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCalendar } from '@/contexts/CalendarContext';
+import { supabaseStorage } from '@/lib/supabase-storage';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -215,6 +216,7 @@ export default function Dashboard() {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [widgets, setWidgets] = useState(defaultWidgets);
   const [showWidgetGallery, setShowWidgetGallery] = useState(false);
+  const [widgetsLoaded, setWidgetsLoaded] = useState(false);
 
   // Update time every minute
   useEffect(() => {
@@ -222,22 +224,40 @@ export default function Dashboard() {
     return () => clearInterval(timer);
   }, []);
 
-  // Load saved widgets from localStorage
+  // Load saved widgets from Supabase
   useEffect(() => {
-    if (user?.uid) {
-      const savedWidgets = localStorage.getItem(`dashboard-widgets-${user.uid}`);
-      if (savedWidgets) {
-        setWidgets(JSON.parse(savedWidgets));
+    const loadWidgets = async () => {
+      if (user?.uid) {
+        try {
+          const savedWidgets = await supabaseStorage.getDashboardWidgets(user.uid);
+          if (savedWidgets && savedWidgets.length > 0) {
+            setWidgets(savedWidgets);
+          }
+        } catch (error) {
+          console.error('Error loading dashboard widgets:', error);
+        }
+        setWidgetsLoaded(true);
       }
-    }
+    };
+    loadWidgets();
   }, [user?.uid]);
 
-  // Save widgets to localStorage
-  useEffect(() => {
-    if (user?.uid && widgets.length > 0) {
-      localStorage.setItem(`dashboard-widgets-${user.uid}`, JSON.stringify(widgets));
+  // Save widgets to Supabase (debounced)
+  const saveWidgets = useCallback(async (widgetsToSave: DashboardWidget[]) => {
+    if (user?.uid && widgetsLoaded) {
+      try {
+        await supabaseStorage.saveDashboardWidgets(user.uid, widgetsToSave);
+      } catch (error) {
+        console.error('Error saving dashboard widgets:', error);
+      }
     }
-  }, [widgets, user?.uid]);
+  }, [user?.uid, widgetsLoaded]);
+
+  useEffect(() => {
+    if (widgetsLoaded && widgets.length > 0) {
+      saveWidgets(widgets);
+    }
+  }, [widgets, saveWidgets, widgetsLoaded]);
 
   const addWidget = (type: DashboardWidget['type'], title: string) => {
     const newWidget: DashboardWidget = {

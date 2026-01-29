@@ -16,6 +16,7 @@ import {
 import { useBoardContext } from '@/contexts/BoardContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { supabaseStorage } from '@/lib/supabase-storage';
 import { Card as TodoCard } from './Card.tsx';
 import type { TodoList, Card as CardType } from '@shared/schema';
 
@@ -65,15 +66,10 @@ export const List: React.FC<ListProps> = ({ list, cards }) => {
         // Create a new card from the dashboard todo
         await createCard(list.id, item.title);
         
-        // Remove from quick tasks API
+        // Remove from quick tasks using storage layer
         if (user) {
           try {
-            await fetch(`/api/quick-tasks/${item.id}`, {
-              method: 'DELETE',
-              headers: {
-                'x-user-id': user.uid
-              }
-            });
+            await supabaseStorage.deleteQuickTask(item.id);
           } catch (error) {
             console.error('Error deleting quick task:', error);
           }
@@ -94,8 +90,13 @@ export const List: React.FC<ListProps> = ({ list, cards }) => {
       }
     } catch (error) {
       console.error('Drop error:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to process drop',
+        variant: 'destructive'
+      });
     }
-  }, [createCard, moveCard, list.id, list.title, cards.length, toast]);
+  }, [createCard, moveCard, list.id, list.title, cards.length, toast, user]);
 
   const handleTitleBlur = async () => {
     setIsEditing(false);

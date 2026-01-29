@@ -157,7 +157,21 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         background: background || null,
       });
       
+      // Create default lists: "To Do" and "Completed"
+      const todoList = await supabaseStorage.createList({
+        boardId: newBoard.id,
+        title: 'To Do',
+        position: 0,
+      });
+      
+      const completedList = await supabaseStorage.createList({
+        boardId: newBoard.id,
+        title: 'Completed',
+        position: 1,
+      });
+      
       setBoards(prev => [...prev, newBoard]);
+      setLists([todoList, completedList]);
       setActiveBoard(newBoard);
       
       toast({
@@ -292,7 +306,14 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Create card
   const createCard = useCallback(async (listId: string, title: string) => {
-    if (!user?.uid) return;
+    if (!user?.uid) {
+      toast({
+        title: 'Error',
+        description: 'You must be logged in to create cards',
+        variant: 'destructive'
+      });
+      return;
+    }
     
     try {
       const position = cards.filter(c => c.listId === listId).length;
@@ -307,6 +328,7 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       setCards(prev => [...prev, newCard]);
     } catch (err) {
+      console.error('Failed to create card:', err);
       toast({
         title: 'Error',
         description: 'Failed to create card',

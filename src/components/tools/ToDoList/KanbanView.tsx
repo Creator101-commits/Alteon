@@ -35,7 +35,7 @@ export const KanbanView: React.FC = () => {
 
   // Filter and search cards
   const filteredCards = useMemo(() => {
-    return cards.filter(card => {
+    const filtered = cards.filter(card => {
       // Search filter
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -49,6 +49,7 @@ export const KanbanView: React.FC = () => {
 
       return true;
     });
+    return filtered;
   }, [cards, searchQuery, filters]);
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -136,19 +137,22 @@ export const KanbanView: React.FC = () => {
             items={lists.map(l => l.id)}
             strategy={horizontalListSortingStrategy}
           >
-            {lists.map((list, index) => (
-              <motion.div
-                key={list.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.05 }}
-              >
-                <List
-                  list={list}
-                  cards={filteredCards.filter(c => c.listId === list.id)}
-                />
-              </motion.div>
-            ))}
+            {lists.map((list, index) => {
+              const listCards = filteredCards.filter(c => c.listId === list.id);
+              return (
+                <motion.div
+                  key={list.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                >
+                  <List
+                    list={list}
+                    cards={listCards}
+                  />
+                </motion.div>
+              );
+            })}
           </SortableContext>
 
           {/* Add List Button */}

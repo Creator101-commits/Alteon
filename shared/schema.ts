@@ -14,6 +14,9 @@ export const users = pgTable("users", {
   googleAccessToken: text("google_access_token"),
   googleRefreshToken: text("google_refresh_token"),
   preferences: jsonb("preferences").default({}),
+  dashboardWidgets: jsonb("dashboard_widgets").default([]),
+  notificationSettings: jsonb("notification_settings").default({}),
+  gpaExcludedCourses: jsonb("gpa_excluded_courses").default([]),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -193,6 +196,7 @@ export const cards = pgTable("cards", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id).notNull(),
   listId: varchar("list_id").references(() => todoLists.id, { onDelete: "set null" }),
+  originalListId: varchar("original_list_id").references(() => todoLists.id, { onDelete: "set null" }),
   title: text("title").notNull(),
   description: text("description"),
   position: integer("position").default(0),
@@ -244,6 +248,31 @@ export const quickTasks = pgTable("quick_tasks", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// User Stats for gamification (moved from localStorage)
+export const userStats = pgTable("user_stats", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull().unique(),
+  totalTasksCompleted: integer("total_tasks_completed").default(0),
+  totalStudyMinutes: integer("total_study_minutes").default(0),
+  totalAssignmentsCompleted: integer("total_assignments_completed").default(0),
+  totalNotesCreated: integer("total_notes_created").default(0),
+  currentStreak: integer("current_streak").default(0),
+  longestStreak: integer("longest_streak").default(0),
+  lastActivityDate: timestamp("last_activity_date"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// User Achievements for gamification (moved from localStorage)
+export const userAchievements = pgTable("user_achievements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  achievementId: text("achievement_id").notNull(),
+  unlockedAt: timestamp("unlocked_at").defaultNow(),
+  progress: integer("progress").default(0),
+  metadata: jsonb("metadata").default({}),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertClassSchema = createInsertSchema(classes).omit({ id: true, createdAt: true });
@@ -280,6 +309,8 @@ export const insertLabelSchema = createInsertSchema(labels).omit({ id: true, cre
 export const insertCardLabelSchema = createInsertSchema(cardLabels);
 export const insertAttachmentSchema = createInsertSchema(attachments).omit({ id: true, uploadedAt: true });
 export const insertQuickTaskSchema = createInsertSchema(quickTasks).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertUserStatsSchema = createInsertSchema(userStats).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertUserAchievementSchema = createInsertSchema(userAchievements).omit({ id: true, unlockedAt: true });
 
 // Types
 export type User = typeof users.$inferSelect;
@@ -322,3 +353,7 @@ export type Attachment = typeof attachments.$inferSelect;
 export type InsertAttachment = z.infer<typeof insertAttachmentSchema>;
 export type QuickTask = typeof quickTasks.$inferSelect;
 export type InsertQuickTask = z.infer<typeof insertQuickTaskSchema>;
+export type UserStats = typeof userStats.$inferSelect;
+export type InsertUserStats = z.infer<typeof insertUserStatsSchema>;
+export type UserAchievement = typeof userAchievements.$inferSelect;
+export type InsertUserAchievement = z.infer<typeof insertUserAchievementSchema>;

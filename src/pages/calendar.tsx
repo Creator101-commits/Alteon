@@ -9,6 +9,7 @@ import { DateTimePicker } from "@/components/ui/date-time-picker";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -424,6 +425,9 @@ export default function Calendar() {
             <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle>Add New Event</DialogTitle>
+                <DialogDescription>
+                  Create a new calendar event with date, time, and optional details.
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-6 pt-4">
                 <div>

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabaseStorage } from '@/lib/supabase-storage';
 
 interface NotificationSettings {
   enabled: boolean;
@@ -23,8 +25,10 @@ interface ScheduledNotification {
 
 export const useNotifications = () => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [permission, setPermission] = useState<NotificationPermission>('default');
   const [isSupported, setIsSupported] = useState(false);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [settings, setSettings] = useState<NotificationSettings>({
     enabled: false,
     deadlines: true,
@@ -44,12 +48,6 @@ export const useNotifications = () => {
       setPermission(Notification.permission);
     }
 
-    // Load settings from localStorage
-    const savedSettings = localStorage.getItem('notification_settings');
-    if (savedSettings) {
-      setSettings(JSON.parse(savedSettings));
-    }
-
     // Register service worker
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js')
@@ -61,6 +59,24 @@ export const useNotifications = () => {
         });
     }
   }, []);
+
+  // Load settings from Supabase
+  useEffect(() => {
+    const loadSettings = async () => {
+      if (user?.uid) {
+        try {
+          const savedSettings = await supabaseStorage.getNotificationSettings(user.uid);
+          if (savedSettings && Object.keys(savedSettings).length > 0) {
+            setSettings(prev => ({ ...prev, ...savedSettings }));
+          }
+        } catch (error) {
+          console.error('Error loading notification settings:', error);
+        }
+        setSettingsLoaded(true);
+      }
+    };
+    loadSettings();
+  }, [user?.uid]);
 
   const requestPermission = async (): Promise<boolean> => {
     if (!isSupported) {
@@ -96,10 +112,18 @@ export const useNotifications = () => {
     }
   };
 
-  const updateSettings = (newSettings: Partial<NotificationSettings>) => {
+  const updateSettings = async (newSettings: Partial<NotificationSettings>) => {
     const updated = { ...settings, ...newSettings };
     setSettings(updated);
-    localStorage.setItem('notification_settings', JSON.stringify(updated));
+    
+    // Save to Supabase if user is logged in
+    if (user?.uid) {
+      try {
+        await supabaseStorage.saveNotificationSettings(user.uid, updated);
+      } catch (error) {
+        console.error('Error saving notification settings:', error);
+      }
+    }
     
     toast({
       title: "Settings Updated",

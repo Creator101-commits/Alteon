@@ -331,6 +331,8 @@ export default function NoteEditor({
           "max-w-none focus:outline-none min-h-[300px] text-foreground",
       },
     },
+    // Prevent duplicate extension warning during React Strict Mode double-render
+    immediatelyRender: false,
   });
 
   // Track content changes for auto-save

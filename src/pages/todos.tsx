@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { useAuth } from '@/contexts/AuthContext';
@@ -295,6 +295,9 @@ export default function Todos() {
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Create New Todo</DialogTitle>
+              <DialogDescription>
+                Add a new task to your todo list.
+              </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div>
@@ -385,6 +388,9 @@ export default function Todos() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Todo</DialogTitle>
+            <DialogDescription>
+              Update the details of your todo item.
+            </DialogDescription>
           </DialogHeader>
           {editingTodo && (
             <div className="grid gap-4 py-4">

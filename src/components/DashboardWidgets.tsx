@@ -540,11 +540,20 @@ export const NotesWidget: React.FC<{ widget: DashboardWidget }> = ({ widget }) =
   // Get recent notes (last 3)
   const recentNotesList = [...notes]
     .sort((a: any, b: any) => {
-      const dateA = new Date(a.updatedAt || a.createdAt).getTime();
-      const dateB = new Date(b.updatedAt || b.createdAt).getTime();
+      const dateA = new Date(a.updatedAt || a.updated_at || a.createdAt || a.created_at).getTime();
+      const dateB = new Date(b.updatedAt || b.updated_at || b.createdAt || b.created_at).getTime();
       return dateB - dateA;
     })
     .slice(0, 3);
+
+  // Helper to format note date safely
+  const formatNoteDate = (note: any) => {
+    const dateStr = note.updatedAt || note.updated_at || note.createdAt || note.created_at;
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
 
   return (
     <DraggableWidget widget={widget} onRemove={() => {}} onResize={() => {}}>
@@ -581,10 +590,7 @@ export const NotesWidget: React.FC<{ widget: DashboardWidget }> = ({ widget }) =
               >
                 <div className="font-medium text-foreground truncate">{note.title || 'Untitled'}</div>
                 <div className="text-muted-foreground">
-                  {new Date(note.updatedAt || note.createdAt).toLocaleDateString('en-US', { 
-                    month: 'short', 
-                    day: 'numeric' 
-                  })}
+                  {formatNoteDate(note)}
                   {note.category && ` • ${note.category}`}
                 </div>
               </div>

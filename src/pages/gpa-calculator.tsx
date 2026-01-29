@@ -3,9 +3,11 @@
  * Calculate cumulative GPA including past years with course exclusion
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useHAC } from '@/contexts/HACContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useLocation } from 'wouter';
+import { supabaseStorage } from '@/lib/supabase-storage';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -197,30 +199,50 @@ export default function GPACalculator() {
     fetchReportCard,
     error 
   } = useHAC();
+  const { user } = useAuth();
   const [, setLocation] = useLocation();
   const [gpaScale, setGpaScale] = useState<'texas_6' | 'standard_4'>('texas_6');
   const [courses, setCourses] = useState<CourseGPAEntry[]>([]);
   const [showExcluded, setShowExcluded] = useState(true);
   const [activeTab, setActiveTab] = useState('calculator');
+  const [excludedCoursesLoaded, setExcludedCoursesLoaded] = useState(false);
+  const [cachedExcludedCourses, setCachedExcludedCourses] = useState<Set<string>>(new Set());
 
-  // Load excluded courses from localStorage
-  const getExcludedCourses = (): Set<string> => {
-    try {
-      const saved = localStorage.getItem('gpa-excluded-courses');
-      return saved ? new Set(JSON.parse(saved)) : new Set();
-    } catch {
-      return new Set();
+  // Load excluded courses from Supabase
+  const getExcludedCourses = useCallback(async (): Promise<Set<string>> => {
+    if (user?.uid) {
+      try {
+        const saved = await supabaseStorage.getGpaExcludedCourses(user.uid);
+        if (saved && saved.length > 0) {
+          return new Set(saved);
+        }
+      } catch (error) {
+        console.error('Error loading GPA excluded courses:', error);
+      }
     }
-  };
+    return new Set();
+  }, [user?.uid]);
 
-  // Save excluded courses to localStorage
-  const saveExcludedCourses = (excludedNames: Set<string>) => {
-    try {
-      localStorage.setItem('gpa-excluded-courses', JSON.stringify([...excludedNames]));
-    } catch {
-      // Ignore localStorage errors
+  // Save excluded courses to Supabase
+  const saveExcludedCourses = useCallback(async (excludedNames: Set<string>) => {
+    if (user?.uid) {
+      try {
+        await supabaseStorage.saveGpaExcludedCourses(user.uid, [...excludedNames]);
+      } catch (error) {
+        console.error('Error saving GPA excluded courses:', error);
+      }
     }
-  };
+  }, [user?.uid]);
+
+  // Load excluded courses on mount
+  useEffect(() => {
+    const loadExcluded = async () => {
+      const excluded = await getExcludedCourses();
+      setCachedExcludedCourses(excluded);
+      setExcludedCoursesLoaded(true);
+    };
+    loadExcluded();
+  }, [getExcludedCourses]);
 
   // Load courses from HAC data
   useEffect(() => {
@@ -231,8 +253,7 @@ export default function GPACalculator() {
 
   // Process report card data into course entries
   useEffect(() => {
-    if (reportCard) {
-      const excludedNames = getExcludedCourses();
+    if (reportCard && excludedCoursesLoaded) {
       const processedCourses: CourseGPAEntry[] = [];
       
       reportCard.cycles.forEach((cycle, cycleIdx) => {
@@ -248,7 +269,7 @@ export default function GPACalculator() {
             level,
             credits: 1, // Default 1 credit per course
             gpaPoints,
-            excluded: excludedNames.has(course.course), // Apply saved exclusion
+            excluded: cachedExcludedCourses.has(course.course), // Apply saved exclusion
             cycle: cycle.cycleName,
           });
         });
@@ -256,12 +277,11 @@ export default function GPACalculator() {
       
       setCourses(processedCourses);
     }
-  }, [reportCard, gpaScale]);
+  }, [reportCard, gpaScale, excludedCoursesLoaded, cachedExcludedCourses]);
 
   // Also include current grades if available
   useEffect(() => {
-    if (gradesData && courses.length === 0) {
-      const excludedNames = getExcludedCourses();
+    if (gradesData && courses.length === 0 && excludedCoursesLoaded) {
       const currentCourses: CourseGPAEntry[] = gradesData.grades
         .filter(g => g.numericGrade !== null)
         .map((course, idx) => {
@@ -276,7 +296,7 @@ export default function GPACalculator() {
             level,
             credits: 1,
             gpaPoints,
-            excluded: excludedNames.has(course.name), // Apply saved exclusion
+            excluded: cachedExcludedCourses.has(course.name), // Apply saved exclusion
             cycle: 'Current',
           };
         });
@@ -307,14 +327,15 @@ export default function GPACalculator() {
       const newExcludedState = !targetCourse.excluded;
       const courseName = targetCourse.courseName;
       
-      // Update localStorage
-      const excludedNames = getExcludedCourses();
+      // Update cached excluded courses and save to Supabase
+      const newExcludedCourses = new Set(cachedExcludedCourses);
       if (newExcludedState) {
-        excludedNames.add(courseName);
+        newExcludedCourses.add(courseName);
       } else {
-        excludedNames.delete(courseName);
+        newExcludedCourses.delete(courseName);
       }
-      saveExcludedCourses(excludedNames);
+      setCachedExcludedCourses(newExcludedCourses);
+      saveExcludedCourses(newExcludedCourses);
       
       // Toggle all courses with the same name across all cycles
       return prev.map(course => 
@@ -333,16 +354,17 @@ export default function GPACalculator() {
         .filter(c => c.cycle === cycleName)
         .map(c => c.courseName);
       
-      // Update localStorage
-      const excludedNames = getExcludedCourses();
+      // Update cached excluded courses and save to Supabase
+      const newExcludedCourses = new Set(cachedExcludedCourses);
       cycleCoursesNames.forEach(name => {
         if (exclude) {
-          excludedNames.add(name);
+          newExcludedCourses.add(name);
         } else {
-          excludedNames.delete(name);
+          newExcludedCourses.delete(name);
         }
       });
-      saveExcludedCourses(excludedNames);
+      setCachedExcludedCourses(newExcludedCourses);
+      saveExcludedCourses(newExcludedCourses);
       
       return prev.map(course => 
         course.cycle === cycleName 
