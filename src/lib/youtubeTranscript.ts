@@ -33,56 +33,35 @@ function extractYouTubeId(input: string): string {
   return input;
 }
 
-export async function getYouTubeTranscriptSafe(urlOrId: string, userId?: string): Promise<string> {
+export async function getYouTubeTranscriptSafe(urlOrId: string, _userId?: string): Promise<string> {
   const videoId = extractYouTubeId(urlOrId);
-  console.log('🎬 Extracting transcript for video ID:', videoId);
-  
-  // Get userId from parameter or try localStorage as fallback
-  const authUserId = userId || (() => {
+
+  // Try YouTube's public timedtext API directly (no secrets required)
+  const langCodes = ['en', 'en-US', 'en-GB', 'a.en'];
+
+  for (const lang of langCodes) {
     try {
-      const user = localStorage.getItem('user');
-      if (user) {
-        const parsed = JSON.parse(user);
-        return parsed.uid || '';
+      const response = await fetch(
+        `https://www.youtube.com/api/timedtext?v=${videoId}&lang=${lang}&fmt=json3`
+      );
+
+      if (response.ok) {
+        const data = await response.json() as { events?: Array<{ segs?: Array<{ utf8: string }> }> };
+        if (data.events) {
+          const transcript = data.events
+            .filter((event) => event.segs)
+            .map((event) => event.segs!.map((seg) => seg.utf8).join(''))
+            .join(' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+          if (transcript) return transcript;
+        }
       }
     } catch {
-      // Ignore
+      continue;
     }
-    return '';
-  })();
-
-  if (!authUserId) {
-    console.error('❌ No user ID available');
-    throw new Error('User authentication required');
   }
-  
-  console.log('✅ User ID:', authUserId);
-  console.log('📡 Calling API:', '/api/youtube/transcript');
-  
-  try {
-    const response = await fetch('/api/youtube/transcript', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-user-id': authUserId,
-      },
-      body: JSON.stringify({ videoId }),
-    });
 
-    console.log('📨 Response status:', response.status, response.statusText);
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Failed to fetch transcript' }));
-      console.error('❌ API error:', error);
-      throw new Error(error.message || 'Failed to fetch transcript');
-    }
-
-    const data = await response.json();
-    console.log('✅ Transcript received:', data.length, 'characters');
-    return data.transcript;
-  } catch (err: any) {
-    console.error('💥 YouTube transcript fetch error:', err);
-    // Re-throw with user-friendly message
-    throw new Error(err.message || 'Unable to fetch transcript. Please check the video URL and try again.');
-  }
+  throw new Error('Could not fetch transcript. The video may not have captions available.');
 }

@@ -1,42 +1,75 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
+import { z } from 'zod';
 import * as hacScraper from '../../lib/hac/scraper.js';
 
+const hacGpaCalculationSchema = z.object({
+  selectedCourses: z.array(z.object({
+    course: z.string(),
+    grade: z.number(),
+    level: z.enum(['Regular', 'PreAP', 'AP', 'Dual', 'Honors']),
+  })),
+  excludedCourses: z.array(z.string()).optional(),
+});
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (req.method !== 'GET') {
+  if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
     const sessionId = req.headers['x-hac-session'] as string;
-    // Accept cycle as string value (matching availableCycles[].value) or legacy numeric index
-    const cycleParam = req.query.cycle as string | undefined;
-    
+
     if (!sessionId) {
       return res.status(401).json({ 
         error: 'HAC session required. Please log in first.' 
       });
     }
-    
+
     const isValid = await hacScraper.validateSession(sessionId);
     if (!isValid) {
       return res.status(401).json({ 
         error: 'Session expired or invalid. Please log in again.' 
       });
     }
-    
-    const gradesData = await hacScraper.fetchGrades(sessionId, cycleParam);
-    
-    if (!gradesData) {
-      return res.status(500).json({ 
-        error: 'Failed to fetch grades from HAC' 
+
+    // GET  → fetch grades
+    // POST → calculate GPA
+    if (req.method === 'GET') {
+      const cycleParam = req.query.cycle as string | undefined;
+      const gradesData = await hacScraper.fetchGrades(sessionId, cycleParam);
+
+      if (!gradesData) {
+        return res.status(500).json({ error: 'Failed to fetch grades from HAC' });
+      }
+
+      return res.json(gradesData);
+    }
+
+    // POST — GPA calculation
+    const data = hacGpaCalculationSchema.parse(req.body);
+    const courseIds = data.selectedCourses.map(c => c.course);
+
+    const gpaData = await hacScraper.calculateCumulativeGpa(
+      sessionId,
+      courseIds,
+      data.excludedCourses || []
+    );
+
+    if (!gpaData) {
+      return res.status(500).json({ error: 'Failed to calculate GPA' });
+    }
+
+    return res.json(gpaData);
+  } catch (error: any) {
+    console.error('HAC grades/GPA error:', error);
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ 
+        error: 'Invalid request format',
+        details: error.errors 
       });
     }
-    
-    res.json(gradesData);
-  } catch (error: any) {
-    console.error('HAC grades error:', error);
     res.status(500).json({ 
-      error: error.message || 'Failed to fetch grades' 
+      error: error.message || 'Failed to process request' 
     });
   }
 }
