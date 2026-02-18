@@ -164,7 +164,7 @@ The system follows a modern serverless data flow pattern:
 - **Radix UI** for accessible, unstyled component primitives
 - **Framer Motion** for smooth, performant animations and transitions
 - **Wouter** for lightweight client-side routing
-- **Slate.js** for rich text editing in note editor
+- **Tiptap** for rich text editing in note editor
 - **Recharts** for data visualization and analytics charts
 - **Lucide React** for consistent iconography
 - **date-fns** for date manipulation and formatting
@@ -226,8 +226,8 @@ The system follows a modern serverless data flow pattern:
    VITE_FIREBASE_PROJECT_ID=your_firebase_project_id
    VITE_FIREBASE_APP_ID=your_firebase_app_id
 
-   # Groq
-   VITE_GROQ_API_KEY=your_groq_api_key
+   # Groq (server-side only — no VITE_ prefix)
+   GROQ_API_KEY=your_groq_api_key
 
    # Google APIs
    VITE_GOOGLE_CLIENT_ID=your_google_client_id
@@ -342,7 +342,7 @@ The application provides a comprehensive REST API with endpoints for:
 - AI-powered features
 - Analytics and reporting
 
-See [API Documentation](ProductivityHub/ProductivityHub/docs/API.md) for detailed endpoint information.
+See [Documentation](docs/HOW_TO_USE.md) for detailed usage information.
 
 ## Contributing
 
@@ -364,7 +364,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Support
 
-- **Documentation**: Check the [docs](ProductivityHub/ProductivityHub/docs/) folder
+- **Documentation**: Check the [docs](docs/) folder
 - **Issues**: Report bugs on [GitHub Issues](https://github.com/Creator101-commits/Alteon/issues)
 - **Discord**: Join our community for support
 - **Email**: support@alteon.com

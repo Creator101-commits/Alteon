@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { User, onAuthStateChanged } from "firebase/auth";
 import { auth, handleAuthRedirect, getUserData, signInWithGoogle, signUpWithEmail, signInWithEmail } from "@/lib/firebase";
 import { supabaseStorage } from "@/lib/supabase-storage";
+import { groqAPI } from "@/lib/groq";
 
 interface AuthContextType {
   user: User | null;
@@ -147,6 +148,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setUser(user);
       
       if (user) {
+        // Keep Groq proxy authenticated
+        groqAPI.setUserId(user.uid);
         // First try to get cached user data immediately
         const cachedData = getUserDataFromStorage(user.uid);
         if (cachedData) {
