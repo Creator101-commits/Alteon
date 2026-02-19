@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { encryptToken, decryptToken } from './tokenEncryption';
 import type {
   User,
   InsertUser,
@@ -141,6 +142,25 @@ export class SupabaseStorage {
   // USER METHODS
   // ========================================
 
+  /**
+   * Decrypt OAuth tokens on a user object after reading from database.
+   * Handles both encrypted and legacy unencrypted tokens gracefully.
+   */
+  private async decryptUserTokens(user: User): Promise<User> {
+    if (!user) return user;
+    try {
+      if (user.googleAccessToken) {
+        user.googleAccessToken = await decryptToken(user.googleAccessToken) || user.googleAccessToken;
+      }
+      if (user.googleRefreshToken) {
+        user.googleRefreshToken = await decryptToken(user.googleRefreshToken) || user.googleRefreshToken;
+      }
+    } catch (error) {
+      console.warn('Failed to decrypt user tokens (may be unencrypted):', error);
+    }
+    return user;
+  }
+
   async getUser(id: string): Promise<User | undefined> {
     const { data, error } = await supabase
       .from('users')
@@ -153,7 +173,7 @@ export class SupabaseStorage {
       return undefined;
     }
 
-    return data as User;
+    return await this.decryptUserTokens(data as User);
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
@@ -169,10 +189,18 @@ export class SupabaseStorage {
       return undefined;
     }
 
-    return data as User;
+    return await this.decryptUserTokens(data as User);
   }
 
   async createUser(user: InsertUser & { id: string }): Promise<User> {
+    // Encrypt OAuth tokens before storing
+    const encryptedAccessToken = user.googleAccessToken
+      ? await encryptToken(user.googleAccessToken)
+      : null;
+    const encryptedRefreshToken = user.googleRefreshToken
+      ? await encryptToken(user.googleRefreshToken)
+      : null;
+
     const { data, error } = await supabase
       .from('users')
       .insert({
@@ -183,8 +211,8 @@ export class SupabaseStorage {
         last_name: user.lastName || null,
         avatar: user.avatar || null,
         google_id: user.googleId || null,
-        google_access_token: user.googleAccessToken || null,
-        google_refresh_token: user.googleRefreshToken || null,
+        google_access_token: encryptedAccessToken,
+        google_refresh_token: encryptedRefreshToken,
         preferences: user.preferences || {},
       })
       .select()
@@ -195,7 +223,7 @@ export class SupabaseStorage {
       throw new Error(`Failed to create user: ${error.message}`);
     }
 
-    return data as User;
+    return await this.decryptUserTokens(data as User);
   }
 
   async updateUser(id: string, user: Partial<InsertUser>): Promise<User | undefined> {
@@ -204,8 +232,16 @@ export class SupabaseStorage {
     if (user.firstName !== undefined) updates.first_name = user.firstName;
     if (user.lastName !== undefined) updates.last_name = user.lastName;
     if (user.avatar !== undefined) updates.avatar = user.avatar;
-    if (user.googleAccessToken !== undefined) updates.google_access_token = user.googleAccessToken;
-    if (user.googleRefreshToken !== undefined) updates.google_refresh_token = user.googleRefreshToken;
+    if (user.googleAccessToken !== undefined) {
+      updates.google_access_token = user.googleAccessToken
+        ? await encryptToken(user.googleAccessToken)
+        : user.googleAccessToken;
+    }
+    if (user.googleRefreshToken !== undefined) {
+      updates.google_refresh_token = user.googleRefreshToken
+        ? await encryptToken(user.googleRefreshToken)
+        : user.googleRefreshToken;
+    }
     if (user.preferences !== undefined) updates.preferences = user.preferences;
 
     const { data, error } = await supabase
@@ -220,7 +256,7 @@ export class SupabaseStorage {
       return undefined;
     }
 
-    return data as User;
+    return await this.decryptUserTokens(data as User);
   }
 
   /**
@@ -243,7 +279,9 @@ export class SupabaseStorage {
         const updates: any = {};
         if (userData.displayName) updates.name = userData.displayName;
         if (userData.photoURL) updates.avatar = userData.photoURL;
-        if (userData.accessToken) updates.google_access_token = userData.accessToken;
+        if (userData.accessToken) {
+          updates.google_access_token = await encryptToken(userData.accessToken);
+        }
         
         if (Object.keys(updates).length > 0) {
           return await this.updateUser(userData.uid, updates);

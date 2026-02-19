@@ -12,6 +12,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { getApiUrl } from '@/lib/apiClient';
+import { encryptLocalData, decryptLocalData } from '@/lib/tokenEncryption';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -216,17 +217,22 @@ export const HACProvider = ({ children }: HACProviderProps) => {
       return;
     }
 
-    try {
-      const cachedCreds = localStorage.getItem(getStorageKey(user.uid, 'credentials'));
-      if (cachedCreds) {
-        const parsed = JSON.parse(cachedCreds);
-        setCachedUsername(parsed.username);
-        credentialsRef.current = parsed;
-        autoLogin(parsed);
+    const loadCachedCredentials = async () => {
+      try {
+        const cachedCreds = localStorage.getItem(getStorageKey(user.uid, 'credentials'));
+        if (cachedCreds) {
+          // Decrypt credentials from localStorage
+          const decrypted = await decryptLocalData(cachedCreds, user.uid);
+          const parsed = JSON.parse(decrypted);
+          setCachedUsername(parsed.username);
+          credentialsRef.current = parsed;
+          autoLogin(parsed);
+        }
+      } catch (err) {
+        console.warn('Failed to load cached HAC credentials:', err);
       }
-    } catch (err) {
-      console.warn('Failed to load cached HAC credentials:', err);
-    }
+    };
+    loadCachedCredentials();
   }, [user?.uid]);
 
   // ─── Auto-login ─────────────────────────────────────────────────────────────
@@ -300,11 +306,13 @@ export const HACProvider = ({ children }: HACProviderProps) => {
       setCachedUsername(credentials.username);
       credentialsRef.current = credentials;
       
-      // Cache credentials
-      localStorage.setItem(
-        getStorageKey(user.uid, 'credentials'),
-        JSON.stringify(credentials)
-      );
+      // Cache credentials (encrypted)
+      encryptLocalData(JSON.stringify(credentials), user.uid).then(encrypted => {
+        localStorage.setItem(
+          getStorageKey(user.uid, 'credentials'),
+          encrypted
+        );
+      });
       
       // Fetch grades (blocking)
       await fetchGradesInternal(data.sessionId);
