@@ -8,7 +8,6 @@ import {
   GraduationCap,
   Wrench,
   Bot,
-  BarChart3,
   FolderOpen,
   School,
   Settings,
@@ -30,7 +29,6 @@ const navigationItems: NavItem[] = [
   { href: "/hac-grades", label: "HAC Grades", icon: School, requiresHAC: true },
   { href: "/learn", label: "Learn", icon: Wrench },
   { href: "/ai-chat", label: "AI Chatbot", icon: Bot },
-  { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
