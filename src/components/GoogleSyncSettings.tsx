@@ -1,63 +1,15 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
-import { updateUserData } from '@/lib/firebase';
-import { RefreshCw, CheckCircle, XCircle, Settings, Info } from 'lucide-react';
+import { CheckCircle, XCircle, Settings, Info } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export const GoogleSyncSettings = () => {
-  const { user, userData, restoreUserData } = useAuth();
-  const { toast } = useToast();
-  const [isUpdating, setIsUpdating] = useState(false);
+  const { user, userData } = useAuth();
 
   const hasGoogleAccess = userData?.hasGoogleAccess === true;
-  const hasGoogleCalendar = userData?.hasGoogleCalendar === true;
-
-  const handleToggleGoogleCalendar = async (enabled: boolean) => {
-    if (!user?.uid) return;
-
-    setIsUpdating(true);
-    try {
-      await updateUserData(user.uid, {
-        hasGoogleCalendar: enabled,
-      });
-
-      toast({
-        title: "Settings Updated",
-        description: `Google Calendar sync ${enabled ? 'enabled' : 'disabled'} successfully.`,
-      });
-
-      // Restore user data to reflect changes
-      await restoreUserData();
-    } catch (error: any) {
-      toast({
-        title: "Update Failed",
-        description: error.message || "Failed to update Google Calendar settings.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsUpdating(false);
-    }
-  };
-
-  const handleReconnectGoogle = async () => {
-    try {
-      toast({
-        title: "Reconnect Google",
-        description: "Please sign out and sign in again with Google to reconnect your account.",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Reconnection Failed",
-        description: "Failed to reconnect Google account.",
-        variant: "destructive",
-      });
-    }
-  };
 
   return (
     <Card className="w-full max-w-2xl">
@@ -84,37 +36,20 @@ export const GoogleSyncSettings = () => {
           </Badge>
         </div>
 
-        {/* Google Calendar Toggle */}
+        {/* Google Calendar Toggle — disabled, scopes removed */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-medium">Google Calendar Sync</h3>
               <p className="text-sm text-muted-foreground">
-                View and sync events from your Google Calendar
+                Google Calendar sync is currently unavailable.
               </p>
             </div>
             <Switch
-              checked={hasGoogleCalendar}
-              onCheckedChange={handleToggleGoogleCalendar}
-              disabled={isUpdating || !userData?.googleAccessToken}
+              checked={false}
+              disabled={true}
             />
           </div>
-
-          {!userData?.googleAccessToken && (
-            <Alert>
-              <Info className="h-4 w-4" />
-              <AlertDescription>
-                You need to sign in with Google to enable calendar synchronization.
-                <Button
-                  variant="link"
-                  className="p-0 h-auto ml-2"
-                  onClick={handleReconnectGoogle}
-                >
-                  Reconnect Google account
-                </Button>
-              </AlertDescription>
-            </Alert>
-          )}
         </div>
 
         {/* Features List */}
@@ -122,8 +57,8 @@ export const GoogleSyncSettings = () => {
           <h3 className="font-medium">Available Features</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="flex items-center gap-2 p-3 border rounded-lg">
-              <CheckCircle className={`w-4 h-4 ${hasGoogleCalendar ? 'text-green-500' : 'text-gray-400'}`} />
-              <span className="text-sm">Google Calendar Sync</span>
+              <XCircle className="w-4 h-4 text-gray-400" />
+              <span className="text-sm">Google Calendar Sync (disabled)</span>
             </div>
             <div className="flex items-center gap-2 p-3 border rounded-lg">
               <CheckCircle className="w-4 h-4 text-green-500" />

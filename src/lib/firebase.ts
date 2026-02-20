@@ -3,7 +3,6 @@ import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRe
 import { getFirestore, doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getAnalytics } from "firebase/analytics";
-import { syncGoogleCalendarOnLogin } from "./google-calendar-service";
 import { storage as supabaseStorage } from "./supabase-storage";
 
 const firebaseConfig = {
@@ -52,11 +51,8 @@ export { db, storage };
 // Initialize Analytics (only in browser environment)
 export const analytics = typeof window !== 'undefined' ? getAnalytics(app) : null;
 
-// Configure Google Auth Provider with Calendar scopes
+// Configure Google Auth Provider scopes (no calendar — removed to avoid Google verification requirement)
 const googleProvider = new GoogleAuthProvider();
-googleProvider.addScope('https://www.googleapis.com/auth/calendar');
-googleProvider.addScope('https://www.googleapis.com/auth/calendar.events');
-// Using only valid Google Classroom API scopes
 googleProvider.addScope('https://www.googleapis.com/auth/userinfo.email');
 googleProvider.addScope('https://www.googleapis.com/auth/userinfo.profile');
 googleProvider.addScope('https://www.googleapis.com/auth/classroom.courses.readonly');
@@ -81,24 +77,10 @@ export const signInWithGoogle = async (enableSync: boolean = true) => {
           googleAccessToken: enableSync ? token : null,
           authProvider: 'google',
           hasGoogleAccess: enableSync, // Key flag to enable sync features
-          hasGoogleCalendar: enableSync, // New flag for calendar access
+          hasGoogleCalendar: false, // Calendar sync disabled — removed scopes
           updatedAt: new Date(),
         }, { merge: true });
         console.log('User data saved to Firestore');
-
-        // Only sync Google Calendar data if sync is enabled
-        if (enableSync) {
-          try {
-            console.log('Starting Google Calendar sync...');
-            const calendarData = await syncGoogleCalendarOnLogin(token, user.uid);
-            console.log(`Synced ${calendarData.calendars.length} calendars and ${calendarData.events.length} events`);
-          } catch (calendarError) {
-            console.warn('Failed to sync Google Calendar data during login:', calendarError);
-            // Don't fail the login if calendar sync fails
-          }
-        } else {
-          console.log('Google sync disabled - skipping data synchronization');
-        }
 
         // Sync user to Supabase database
         try {
@@ -164,19 +146,10 @@ export const handleAuthRedirect = async () => {
             googleAccessToken: token,
             authProvider: 'google',
             hasGoogleAccess: true, // Key flag to enable sync features
-            hasGoogleCalendar: true, // New flag for calendar access
+            hasGoogleCalendar: false, // Calendar sync disabled — removed scopes
             updatedAt: new Date(),
           }, { merge: true });
           console.log('User data saved to Firestore via redirect');
-
-          // Automatically sync Google Calendar data
-          try {
-            console.log('Starting Google Calendar sync from redirect...');
-            const calendarData = await syncGoogleCalendarOnLogin(token, user.uid);
-            console.log(`Synced ${calendarData.calendars.length} calendars and ${calendarData.events.length} events`);
-          } catch (calendarError) {
-            console.warn('Failed to sync Google Calendar data during redirect login:', calendarError);
-          }
         } catch (firestoreError) {
           console.warn('Failed to save user data to Firestore via redirect:', firestoreError);
         }

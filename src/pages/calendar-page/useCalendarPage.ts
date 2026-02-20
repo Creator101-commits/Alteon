@@ -23,8 +23,6 @@ import {
 import { useCalendar, CalendarEvent } from '@/contexts/CalendarContext';
 import { useActivity } from '@/contexts/ActivityContext';
 import { useSmartScheduling } from '@/hooks/useSmartScheduling';
-import { useGoogleCalendarSync } from '@/hooks/useGoogleCalendarSync';
-import { useGoogleClassroom } from '@/hooks/useGoogleClassroom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { Calendar as CalendarIcon } from 'lucide-react';
@@ -39,22 +37,15 @@ import {
 } from './types';
 
 export function useCalendarPage() {
-  const { user, userData, hasGoogleCalendar } = useAuth();
+  const { user } = useAuth();
   const { events, addEvent, getEventsForDate } = useCalendar();
   const { addActivity } = useActivity();
   const { generateOptimalSchedule, saveScheduleToCalendar } = useSmartScheduling();
-  const {
-    events: googleEvents,
-    calendars: googleCalendars,
-    isConnected: isGoogleConnected,
-    isLoading: isCalendarLoading,
-    error: calendarError,
-    syncCalendarData,
-    createEvent: createGoogleEvent,
-    lastSync,
-  } = useGoogleCalendarSync();
-  const { syncClassroomData } = useGoogleClassroom();
   const { toast } = useToast();
+
+  // Google Calendar sync disabled — scopes removed to avoid Google verification requirement
+  const googleEvents: any[] = [];
+  const isCalendarLoading = false;
 
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -191,52 +182,18 @@ export function useCalendarPage() {
 
     let eventId: string | undefined;
 
-    if (isGoogleConnected) {
-      try {
-        const googleEvent = await createGoogleEvent({
-          title: newEvent.title,
-          description: newEvent.description,
-          startTime,
-          endTime,
-          location: newEvent.location,
-        });
-        if (googleEvent) {
-          eventId = googleEvent.id;
-          toast({ title: 'Event Created', description: 'Event added to Google Calendar' });
-        } else {
-          throw new Error('Failed to create Google event');
-        }
-      } catch (error) {
-        console.warn('Failed to create Google Calendar event, adding to local calendar:', error);
-        eventId = addEvent({
-          title: newEvent.title,
-          description: newEvent.description,
-          startTime,
-          endTime,
-          type: newEvent.type,
-          color: getColorForType(newEvent.type),
-          location: newEvent.location,
-          isAllDay: newEvent.isAllDay,
-        });
-        toast({
-          title: 'Event Created Locally',
-          description: 'Failed to sync with Google Calendar, saved locally instead',
-          variant: 'destructive',
-        });
-      }
-    } else {
-      eventId = addEvent({
-        title: newEvent.title,
-        description: newEvent.description,
-        startTime,
-        endTime,
-        type: newEvent.type,
-        color: getColorForType(newEvent.type),
-        location: newEvent.location,
-        isAllDay: newEvent.isAllDay,
-      });
-      toast({ title: 'Event Created', description: 'Event added to local calendar' });
-    }
+    // Events are added locally only (Google Calendar sync disabled)
+    eventId = addEvent({
+      title: newEvent.title,
+      description: newEvent.description,
+      startTime,
+      endTime,
+      type: newEvent.type,
+      color: getColorForType(newEvent.type),
+      location: newEvent.location,
+      isAllDay: newEvent.isAllDay,
+    });
+    toast({ title: 'Event Created', description: 'Event added to calendar' });
 
     if (eventId) {
       addActivity({
@@ -253,25 +210,12 @@ export function useCalendarPage() {
     setNewEvent({ ...EMPTY_EVENT });
   };
 
+  // Google Calendar sync disabled
   const handleSync = async () => {
-    if (!user) return;
-    setIsSyncing(true);
-    try {
-      await Promise.all([syncClassroomData(), syncCalendarData()]);
-      toast({
-        title: 'Sync Complete',
-        description: `Synced ${googleEvents.length} calendar events and assignments`,
-      });
-    } catch (error) {
-      console.error('Sync error:', error);
-      toast({
-        title: 'Sync Failed',
-        description: 'Could not sync data. Please check your Google account connection.',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsSyncing(false);
-    }
+    toast({
+      title: 'Sync Unavailable',
+      description: 'Google Calendar sync is currently disabled.',
+    });
   };
 
   return {

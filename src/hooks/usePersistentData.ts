@@ -27,11 +27,6 @@ export const usePersistentData = () => {
     setState(prev => ({ ...prev, isRestoring: true }));
 
     try {
-      // Restore Google Calendar data if available
-      if (userData?.hasGoogleCalendar) {
-        await restoreGoogleCalendarData();
-      }
-
       // Restore custom assignments from cache
       await restoreCustomAssignments();
 
