@@ -159,9 +159,9 @@ export default function Landing() {
           <div className="flex flex-col md:flex-row justify-between items-center space-y-6 md:space-y-0">
             <div className="text-lg font-medium">Alteon</div>
             <div className="flex space-x-6">
-              <a href="#" className="text-muted-foreground hover:text-foreground transition-all duration-200 link-hover text-sm">Privacy</a>
-              <a href="#" className="text-muted-foreground hover:text-foreground transition-all duration-200 link-hover text-sm">Terms</a>
-              <a href="#" className="text-muted-foreground hover:text-foreground transition-all duration-200 link-hover text-sm">Support</a>
+              <a href="/privacy-policy" className="text-muted-foreground hover:text-foreground transition-all duration-200 link-hover text-sm">Privacy</a>
+              <a href="/terms-of-service" className="text-muted-foreground hover:text-foreground transition-all duration-200 link-hover text-sm">Terms</a>
+              <a href="mailto:support@alteon.app" className="text-muted-foreground hover:text-foreground transition-all duration-200 link-hover text-sm">Support</a>
             </div>
           </div>
           <div className="mt-6 text-center text-muted-foreground">
