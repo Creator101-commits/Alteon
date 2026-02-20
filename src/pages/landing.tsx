@@ -63,6 +63,7 @@ export default function Landing() {
         <div className="max-w-5xl mx-auto text-center relative z-10">
           <div className="space-y-12 animate-fade-in">
             <h1 className="text-5xl md:text-7xl lg:text-8xl font-normal tracking-tight leading-none">
+              <span className="block text-2xl md:text-3xl font-semibold tracking-[0.2em] uppercase text-muted-foreground mb-6">Alteon</span>
               Study<br />
               <span className="relative">
                 Smarter
