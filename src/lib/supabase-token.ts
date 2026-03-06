@@ -2,6 +2,8 @@ import { auth } from './firebase';
 
 let cachedToken: string | null = null;
 let cachedExpiresAt = 0;
+let lastFailureAt = 0;
+const FAILURE_COOLDOWN_MS = 10_000; // Don't retry for 10 s after a failure
 
 // Exchange a Firebase ID token for a Supabase JWT via our server endpoint.
 async function exchangeToken(firebaseIdToken: string): Promise<{ token: string; expiresAt: number }> {
@@ -24,6 +26,7 @@ async function exchangeToken(firebaseIdToken: string): Promise<{ token: string; 
  * - Returns the cached token if it's still valid (with 60 s buffer).
  * - Otherwise gets a fresh Firebase ID token and exchanges it.
  * - Returns null when no Firebase user is signed in.
+ * - After a failure, backs off for 10 s to avoid hammering the endpoint.
  */
 export async function getSupabaseToken(): Promise<string | null> {
   const user = auth.currentUser;
@@ -38,12 +41,24 @@ export async function getSupabaseToken(): Promise<string | null> {
     return cachedToken;
   }
 
-  const firebaseIdToken = await user.getIdToken(true);
-  const { token, expiresAt } = await exchangeToken(firebaseIdToken);
+  // Back off after a recent failure
+  if (lastFailureAt && Date.now() - lastFailureAt < FAILURE_COOLDOWN_MS) {
+    return cachedToken;
+  }
 
-  cachedToken = token;
-  cachedExpiresAt = expiresAt;
-  return token;
+  try {
+    const firebaseIdToken = await user.getIdToken(true);
+    const { token, expiresAt } = await exchangeToken(firebaseIdToken);
+
+    cachedToken = token;
+    cachedExpiresAt = expiresAt;
+    lastFailureAt = 0;
+    return token;
+  } catch (err) {
+    console.error('Supabase token exchange failed:', err);
+    lastFailureAt = Date.now();
+    return cachedToken; // Return stale token (or null) rather than crashing
+  }
 }
 
 /** Clear the cached Supabase token (call on logout). */
