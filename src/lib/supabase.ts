@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseToken } from './supabase-token';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -9,12 +9,20 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Create Supabase client with custom accessToken for RLS.
-// On every request the client calls getSupabaseToken() which returns
-// a JWT signed with the Supabase secret, containing sub = Firebase UID.
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+// The accessToken callback is called before every request.
+// It returns a Supabase JWT (with sub = Firebase UID) when the user is
+// authenticated, or the anon key when not — so unauthenticated pages
+// still work and RLS kicks in only for authenticated queries.
+export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
   accessToken: async () => {
-    const token = await getSupabaseToken();
-    return token ?? '';
+    try {
+      const token = await getSupabaseToken();
+      if (token) return token;
+    } catch {
+      // Fall through to anon key
+    }
+    // No user or exchange failed — return anon key so requests don't get 401
+    return supabaseAnonKey;
   },
   auth: {
     persistSession: false,

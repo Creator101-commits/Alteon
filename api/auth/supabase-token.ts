@@ -53,7 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       expiresAt: (now + expiresIn) * 1000, // ms for the client
     });
   } catch (err: any) {
-    console.error('Token exchange failed:', err.message);
+    console.error('Token exchange failed:', err.message, err.code, err.stack);
 
     if (err.code === 'ERR_JWT_EXPIRED') {
       return res.status(401).json({ error: 'Firebase token expired' });
@@ -62,6 +62,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(401).json({ error: 'Invalid Firebase token' });
     }
 
-    return res.status(500).json({ error: 'Token exchange failed' });
+    return res.status(500).json({ error: 'Token exchange failed', detail: err.message });
   }
 }
