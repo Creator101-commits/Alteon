@@ -152,10 +152,12 @@ export class SupabaseStorage {
     if (!user) return user;
     try {
       if (user.googleAccessToken) {
-        user.googleAccessToken = await decryptToken(user.googleAccessToken) || user.googleAccessToken;
+        user.googleAccessToken =
+          (await decryptToken(user.googleAccessToken)) || user.googleAccessToken;
       }
       if (user.googleRefreshToken) {
-        user.googleRefreshToken = await decryptToken(user.googleRefreshToken) || user.googleRefreshToken;
+        user.googleRefreshToken =
+          (await decryptToken(user.googleRefreshToken)) || user.googleRefreshToken;
       }
     } catch (error) {
       console.warn('Failed to decrypt user tokens (may be unencrypted):', error);
@@ -164,16 +166,14 @@ export class SupabaseStorage {
   }
 
   async getUser(id: string): Promise<User | undefined> {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', id)
-      .single();
+    const { data, error } = await supabase.from('users').select('*').eq('id', id).maybeSingle();
 
     if (error) {
       console.error('Error fetching user:', error);
       return undefined;
     }
+
+    if (!data) return undefined;
 
     return await this.decryptUserTokens(data as User);
   }
@@ -183,13 +183,14 @@ export class SupabaseStorage {
       .from('users')
       .select('*')
       .eq('email', email)
-      .single();
+      .maybeSingle();
 
     if (error) {
-      if (error.code === 'PGRST116') return undefined; // Not found
       console.error('Error fetching user by email:', error);
       return undefined;
     }
+
+    if (!data) return undefined;
 
     return await this.decryptUserTokens(data as User);
   }
@@ -275,7 +276,7 @@ export class SupabaseStorage {
     try {
       // Try to get existing user first
       const existingUser = await this.getUser(userData.uid);
-      
+
       if (existingUser) {
         // Update existing user
         const updates: any = {};
@@ -284,7 +285,7 @@ export class SupabaseStorage {
         if (userData.accessToken) {
           updates.google_access_token = await encryptToken(userData.accessToken);
         }
-        
+
         if (Object.keys(updates).length > 0) {
           return await this.updateUser(userData.uid, updates);
         }
@@ -358,10 +359,11 @@ export class SupabaseStorage {
     if (updates.teacherName !== undefined) updateData.teacher_name = updates.teacherName;
     if (updates.teacherEmail !== undefined) updateData.teacher_email = updates.teacherEmail;
     if (updates.section !== undefined) updateData.section = updates.section;
-    if (updates.googleClassroomId !== undefined) updateData.google_classroom_id = updates.googleClassroomId;
+    if (updates.googleClassroomId !== undefined)
+      updateData.google_classroom_id = updates.googleClassroomId;
     if (updates.source !== undefined) updateData.source = updates.source;
     if (updates.syncStatus !== undefined) updateData.sync_status = updates.syncStatus;
-    
+
     const { data, error } = await supabase
       .from('classes')
       .update(updateData)
@@ -378,10 +380,7 @@ export class SupabaseStorage {
   }
 
   async deleteClass(id: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('classes')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('classes').delete().eq('id', id);
 
     if (error) {
       console.error('Error deleting class:', error);
@@ -439,7 +438,10 @@ export class SupabaseStorage {
     return data as Assignment;
   }
 
-  async updateAssignment(id: string, assignment: Partial<InsertAssignment>): Promise<Assignment | undefined> {
+  async updateAssignment(
+    id: string,
+    assignment: Partial<InsertAssignment>,
+  ): Promise<Assignment | undefined> {
     const updates: any = {};
     if (assignment.title !== undefined) updates.title = assignment.title;
     if (assignment.description !== undefined) updates.description = assignment.description;
@@ -465,10 +467,7 @@ export class SupabaseStorage {
   }
 
   async deleteAssignment(id: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('assignments')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('assignments').delete().eq('id', id);
 
     if (error) {
       console.error('Error deleting assignment:', error);
@@ -498,11 +497,7 @@ export class SupabaseStorage {
   }
 
   async getFolder(id: string): Promise<Folder | undefined> {
-    const { data, error } = await supabase
-      .from('folders')
-      .select('*')
-      .eq('id', id)
-      .single();
+    const { data, error } = await supabase.from('folders').select('*').eq('id', id).single();
 
     if (error) {
       console.error('Error fetching folder:', error);
@@ -560,10 +555,7 @@ export class SupabaseStorage {
   }
 
   async deleteFolder(id: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('folders')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('folders').delete().eq('id', id);
 
     if (error) {
       console.error('Error deleting folder:', error);
@@ -593,11 +585,7 @@ export class SupabaseStorage {
   }
 
   async getNote(id: string): Promise<Note | undefined> {
-    const { data, error } = await supabase
-      .from('notes')
-      .select('*')
-      .eq('id', id)
-      .single();
+    const { data, error } = await supabase.from('notes').select('*').eq('id', id).single();
 
     if (error) {
       console.error('Error fetching note:', error);
@@ -658,10 +646,7 @@ export class SupabaseStorage {
   }
 
   async deleteNote(id: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('notes')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('notes').delete().eq('id', id);
 
     if (error) {
       console.error('Error deleting note:', error);
@@ -699,7 +684,10 @@ export class SupabaseStorage {
     throw new Error('Journal entries feature has been removed');
   }
 
-  async updateJournalEntry(id: string, entry: Partial<InsertJournalEntry>): Promise<JournalEntry | undefined> {
+  async updateJournalEntry(
+    id: string,
+    entry: Partial<InsertJournalEntry>,
+  ): Promise<JournalEntry | undefined> {
     // Table was dropped
     return undefined;
   }
@@ -767,7 +755,8 @@ export class SupabaseStorage {
         user_id: event.userId,
         title: event.title,
         description: event.description || null,
-        start_time: event.startTime instanceof Date ? event.startTime.toISOString() : event.startTime,
+        start_time:
+          event.startTime instanceof Date ? event.startTime.toISOString() : event.startTime,
         end_time: event.endTime instanceof Date ? event.endTime.toISOString() : event.endTime,
         type: event.type || 'event',
         color: event.color || 'bg-blue-500',
@@ -786,12 +775,19 @@ export class SupabaseStorage {
     return this.mapDbToCalendarEvent(data);
   }
 
-  async updateCalendarEvent(id: string, event: Partial<InsertCalendarEvent>): Promise<CalendarEventDB | undefined> {
+  async updateCalendarEvent(
+    id: string,
+    event: Partial<InsertCalendarEvent>,
+  ): Promise<CalendarEventDB | undefined> {
     const updates: any = { updated_at: new Date().toISOString() };
     if (event.title !== undefined) updates.title = event.title;
     if (event.description !== undefined) updates.description = event.description;
-    if (event.startTime !== undefined) updates.start_time = event.startTime instanceof Date ? event.startTime.toISOString() : event.startTime;
-    if (event.endTime !== undefined) updates.end_time = event.endTime instanceof Date ? event.endTime.toISOString() : event.endTime;
+    if (event.startTime !== undefined)
+      updates.start_time =
+        event.startTime instanceof Date ? event.startTime.toISOString() : event.startTime;
+    if (event.endTime !== undefined)
+      updates.end_time =
+        event.endTime instanceof Date ? event.endTime.toISOString() : event.endTime;
     if (event.type !== undefined) updates.type = event.type;
     if (event.color !== undefined) updates.color = event.color;
     if (event.location !== undefined) updates.location = event.location;
@@ -814,10 +810,7 @@ export class SupabaseStorage {
   }
 
   async deleteCalendarEvent(id: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('calendar_events')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('calendar_events').delete().eq('id', id);
 
     if (error) {
       console.error('Error deleting calendar event:', error);
@@ -903,10 +896,7 @@ export class SupabaseStorage {
   }
 
   async deleteHabit(id: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('habits')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('habits').delete().eq('id', id);
 
     if (error) {
       console.error('Error deleting habit:', error);
@@ -958,10 +948,7 @@ export class SupabaseStorage {
   }
 
   async deleteAiSummary(id: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('ai_summaries')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('ai_summaries').delete().eq('id', id);
 
     if (error) {
       console.error('Error deleting AI summary:', error);
@@ -992,11 +979,7 @@ export class SupabaseStorage {
   }
 
   async getBoard(id: string): Promise<Board | undefined> {
-    const { data, error } = await supabase
-      .from('boards')
-      .select('*')
-      .eq('id', id)
-      .single();
+    const { data, error } = await supabase.from('boards').select('*').eq('id', id).single();
 
     if (error) {
       console.error('Error fetching board:', error);
@@ -1052,10 +1035,7 @@ export class SupabaseStorage {
   }
 
   async deleteBoard(id: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('boards')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('boards').delete().eq('id', id);
 
     if (error) {
       console.error('Error deleting board:', error);
@@ -1083,7 +1063,7 @@ export class SupabaseStorage {
     }
 
     // Map snake_case to camelCase
-    return (data || []).map(list => ({
+    return (data || []).map((list) => ({
       id: list.id,
       boardId: list.board_id,
       title: list.title,
@@ -1143,10 +1123,7 @@ export class SupabaseStorage {
   }
 
   async deleteList(id: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('todo_lists')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('todo_lists').delete().eq('id', id);
 
     if (error) {
       console.error('Error deleting list:', error);
@@ -1195,10 +1172,10 @@ export class SupabaseStorage {
   async getCardsByBoardId(boardId: string): Promise<Card[]> {
     // Get all lists for this board first
     const lists = await this.getListsByBoardId(boardId);
-    const listIds = lists.map(l => l.id);
-    
+    const listIds = lists.map((l) => l.id);
+
     if (listIds.length === 0) return [];
-    
+
     const { data, error } = await supabase
       .from('cards')
       .select('*')
@@ -1212,7 +1189,7 @@ export class SupabaseStorage {
     }
 
     // Map snake_case to camelCase
-    return (data || []).map(card => ({
+    return (data || []).map((card) => ({
       id: card.id,
       userId: card.user_id,
       listId: card.list_id,
@@ -1243,7 +1220,7 @@ export class SupabaseStorage {
     }
 
     // Map snake_case to camelCase
-    return (data || []).map(card => ({
+    return (data || []).map((card) => ({
       id: card.id,
       userId: card.user_id,
       listId: card.list_id,
@@ -1260,11 +1237,7 @@ export class SupabaseStorage {
   }
 
   async getCard(id: string): Promise<Card | undefined> {
-    const { data, error } = await supabase
-      .from('cards')
-      .select('*')
-      .eq('id', id)
-      .single();
+    const { data, error } = await supabase.from('cards').select('*').eq('id', id).single();
 
     if (error) {
       console.error('Error fetching card:', error);
@@ -1368,10 +1341,7 @@ export class SupabaseStorage {
   }
 
   async deleteCard(id: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('cards')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('cards').delete().eq('id', id);
 
     if (error) {
       console.error('Error deleting card:', error);
@@ -1420,7 +1390,10 @@ export class SupabaseStorage {
     return data as Checklist;
   }
 
-  async updateChecklist(id: string, checklist: Partial<InsertChecklist>): Promise<Checklist | undefined> {
+  async updateChecklist(
+    id: string,
+    checklist: Partial<InsertChecklist>,
+  ): Promise<Checklist | undefined> {
     const updates: any = {};
     if (checklist.title !== undefined) updates.title = checklist.title;
     if (checklist.isChecked !== undefined) updates.is_checked = checklist.isChecked;
@@ -1442,10 +1415,7 @@ export class SupabaseStorage {
   }
 
   async deleteChecklist(id: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('checklists')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('checklists').delete().eq('id', id);
 
     if (error) {
       console.error('Error deleting checklist:', error);
@@ -1514,10 +1484,7 @@ export class SupabaseStorage {
   }
 
   async deleteLabel(id: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('labels')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('labels').delete().eq('id', id);
 
     if (error) {
       console.error('Error deleting label:', error);
@@ -1528,12 +1495,10 @@ export class SupabaseStorage {
   }
 
   async addLabelToCard(cardId: string, labelId: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('card_labels')
-      .insert({
-        card_id: cardId,
-        label_id: labelId,
-      });
+    const { error } = await supabase.from('card_labels').insert({
+      card_id: cardId,
+      label_id: labelId,
+    });
 
     if (error) {
       console.error('Error adding label to card:', error);
@@ -1608,7 +1573,10 @@ export class SupabaseStorage {
     return data as QuickTask;
   }
 
-  async updateQuickTask(id: string, task: Partial<InsertQuickTask>): Promise<QuickTask | undefined> {
+  async updateQuickTask(
+    id: string,
+    task: Partial<InsertQuickTask>,
+  ): Promise<QuickTask | undefined> {
     const updates: any = {};
     if (task.title !== undefined) updates.title = task.title;
     if (task.completed !== undefined) updates.completed = task.completed;
@@ -1629,10 +1597,7 @@ export class SupabaseStorage {
   }
 
   async deleteQuickTask(id: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('quick_tasks')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('quick_tasks').delete().eq('id', id);
 
     if (error) {
       console.error('Error deleting quick task:', error);
@@ -1674,17 +1639,24 @@ export class SupabaseStorage {
     } as UserStats;
   }
 
-  async createOrUpdateUserStats(userId: string, stats: Partial<InsertUserStats>): Promise<UserStats | undefined> {
+  async createOrUpdateUserStats(
+    userId: string,
+    stats: Partial<InsertUserStats>,
+  ): Promise<UserStats | undefined> {
     // First check if stats exist
     const existing = await this.getUserStats(userId);
-    
+
     if (existing) {
       // Update existing stats
       const updates: any = {};
-      if (stats.totalTasksCompleted !== undefined) updates.total_tasks_completed = stats.totalTasksCompleted;
-      if (stats.totalStudyMinutes !== undefined) updates.total_study_minutes = stats.totalStudyMinutes;
-      if (stats.totalAssignmentsCompleted !== undefined) updates.total_assignments_completed = stats.totalAssignmentsCompleted;
-      if (stats.totalNotesCreated !== undefined) updates.total_notes_created = stats.totalNotesCreated;
+      if (stats.totalTasksCompleted !== undefined)
+        updates.total_tasks_completed = stats.totalTasksCompleted;
+      if (stats.totalStudyMinutes !== undefined)
+        updates.total_study_minutes = stats.totalStudyMinutes;
+      if (stats.totalAssignmentsCompleted !== undefined)
+        updates.total_assignments_completed = stats.totalAssignmentsCompleted;
+      if (stats.totalNotesCreated !== undefined)
+        updates.total_notes_created = stats.totalNotesCreated;
       if (stats.currentStreak !== undefined) updates.current_streak = stats.currentStreak;
       if (stats.longestStreak !== undefined) updates.longest_streak = stats.longestStreak;
       if (stats.lastActivityDate !== undefined) updates.last_activity_date = stats.lastActivityDate;
@@ -1753,10 +1725,16 @@ export class SupabaseStorage {
     }
   }
 
-  async incrementUserStat(userId: string, stat: keyof InsertUserStats, amount: number = 1): Promise<UserStats | undefined> {
+  async incrementUserStat(
+    userId: string,
+    stat: keyof InsertUserStats,
+    amount: number = 1,
+  ): Promise<UserStats | undefined> {
     const existing = await this.getUserStats(userId);
-    const currentValue = existing ? (existing[stat as keyof UserStats] as number || 0) : 0;
-    return this.createOrUpdateUserStats(userId, { [stat]: currentValue + amount } as Partial<InsertUserStats>);
+    const currentValue = existing ? (existing[stat as keyof UserStats] as number) || 0 : 0;
+    return this.createOrUpdateUserStats(userId, {
+      [stat]: currentValue + amount,
+    } as Partial<InsertUserStats>);
   }
 
   // ========================================
@@ -1775,7 +1753,7 @@ export class SupabaseStorage {
       return [];
     }
 
-    return (data || []).map(achievement => ({
+    return (data || []).map((achievement) => ({
       id: achievement.id,
       userId: achievement.user_id,
       achievementId: achievement.achievement_id,
@@ -1785,7 +1763,10 @@ export class SupabaseStorage {
     })) as UserAchievement[];
   }
 
-  async getAchievement(userId: string, achievementId: string): Promise<UserAchievement | undefined> {
+  async getAchievement(
+    userId: string,
+    achievementId: string,
+  ): Promise<UserAchievement | undefined> {
     const { data, error } = await supabase
       .from('user_achievements')
       .select('*')
@@ -1809,7 +1790,11 @@ export class SupabaseStorage {
     } as UserAchievement;
   }
 
-  async unlockAchievement(userId: string, achievementId: string, metadata: any = {}): Promise<UserAchievement | undefined> {
+  async unlockAchievement(
+    userId: string,
+    achievementId: string,
+    metadata: any = {},
+  ): Promise<UserAchievement | undefined> {
     // Check if already unlocked
     const existing = await this.getAchievement(userId, achievementId);
     if (existing) return existing;
@@ -1840,9 +1825,13 @@ export class SupabaseStorage {
     } as UserAchievement;
   }
 
-  async updateAchievementProgress(userId: string, achievementId: string, progress: number): Promise<UserAchievement | undefined> {
+  async updateAchievementProgress(
+    userId: string,
+    achievementId: string,
+    progress: number,
+  ): Promise<UserAchievement | undefined> {
     const existing = await this.getAchievement(userId, achievementId);
-    
+
     if (existing) {
       // Update progress
       const { data, error } = await supabase
@@ -1898,16 +1887,22 @@ export class SupabaseStorage {
   // USER SETTINGS METHODS (dashboard widgets, notifications, etc.)
   // ========================================
 
-  async updateUserSettings(userId: string, settings: {
-    dashboardWidgets?: any[];
-    notificationSettings?: any;
-    gpaExcludedCourses?: string[];
-    preferences?: any;
-  }): Promise<User | undefined> {
+  async updateUserSettings(
+    userId: string,
+    settings: {
+      dashboardWidgets?: any[];
+      notificationSettings?: any;
+      gpaExcludedCourses?: string[];
+      preferences?: any;
+    },
+  ): Promise<User | undefined> {
     const updates: any = {};
-    if (settings.dashboardWidgets !== undefined) updates.dashboard_widgets = settings.dashboardWidgets;
-    if (settings.notificationSettings !== undefined) updates.notification_settings = settings.notificationSettings;
-    if (settings.gpaExcludedCourses !== undefined) updates.gpa_excluded_courses = settings.gpaExcludedCourses;
+    if (settings.dashboardWidgets !== undefined)
+      updates.dashboard_widgets = settings.dashboardWidgets;
+    if (settings.notificationSettings !== undefined)
+      updates.notification_settings = settings.notificationSettings;
+    if (settings.gpaExcludedCourses !== undefined)
+      updates.gpa_excluded_courses = settings.gpaExcludedCourses;
     if (settings.preferences !== undefined) updates.preferences = settings.preferences;
     updates.updated_at = new Date().toISOString();
 
@@ -1983,7 +1978,9 @@ export class SupabaseStorage {
 
       analytics.totalClasses = classes.length;
       analytics.totalAssignments = assignments.length;
-      analytics.completedAssignments = assignments.filter((a: any) => a.status === 'completed').length;
+      analytics.completedAssignments = assignments.filter(
+        (a: any) => a.status === 'completed',
+      ).length;
       // analytics.totalFlashcards will be 0 until new system is built
       analytics.totalNotes = notes.length;
       analytics.totalBoards = boards.length;
@@ -1999,41 +1996,41 @@ export class SupabaseStorage {
   // ========================================
   // ALIAS METHODS (for compatibility)
   // ========================================
-  
+
   // Quick tasks aliases
   getQuickTasks = this.getQuickTasksByUserId.bind(this);
-  
+
   // Class aliases
   getClassesForUser(userId: string) {
     return this.getClassesByUserId(userId);
   }
-  
+
   // Assignment aliases
   getAssignmentsForUser(userId: string) {
     return this.getAssignmentsByUserId(userId);
   }
-  
+
   // Board aliases
   getBoardsForUser(userId: string) {
     return this.getBoardsByUserId(userId);
   }
-  
+
   getListsForBoard(boardId: string) {
     return this.getListsByBoardId(boardId);
   }
-  
+
   getCardsForBoard(boardId: string) {
     return this.getCardsByBoardId(boardId);
   }
-  
+
   getLabelsForUser(userId: string) {
     return this.getLabelsByUserId(userId);
   }
-  
+
   getInboxCardsForUser(userId: string) {
     return this.getInboxCards(userId);
   }
-  
+
   getHabitsForUser(userId: string) {
     return this.getHabitsByUserId(userId);
   }
@@ -2094,7 +2091,10 @@ export class SupabaseStorage {
     return mapDbToFlashcardDeck(data);
   }
 
-  async updateFlashcardDeck(id: string, deck: Partial<InsertFlashcardDeck>): Promise<FlashcardDeck | undefined> {
+  async updateFlashcardDeck(
+    id: string,
+    deck: Partial<InsertFlashcardDeck>,
+  ): Promise<FlashcardDeck | undefined> {
     const updates: any = {};
     if (deck.title !== undefined) updates.title = deck.title;
     if (deck.description !== undefined) updates.description = deck.description;
@@ -2119,10 +2119,7 @@ export class SupabaseStorage {
   }
 
   async deleteFlashcardDeck(id: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('flashcard_decks')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('flashcard_decks').delete().eq('id', id);
 
     if (error) {
       console.error('Error deleting flashcard deck:', error);
@@ -2190,10 +2187,7 @@ export class SupabaseStorage {
       is_starred: c.isStarred ?? false,
     }));
 
-    const { data, error } = await supabase
-      .from('flashcards')
-      .insert(rows)
-      .select();
+    const { data, error } = await supabase.from('flashcards').insert(rows).select();
 
     if (error) {
       console.error('Error batch creating flashcards:', error);
@@ -2203,7 +2197,10 @@ export class SupabaseStorage {
     return (data || []).map(mapDbToFlashcard);
   }
 
-  async updateFlashcard(id: string, card: Partial<InsertFlashcard>): Promise<Flashcard | undefined> {
+  async updateFlashcard(
+    id: string,
+    card: Partial<InsertFlashcard>,
+  ): Promise<Flashcard | undefined> {
     const updates: any = {};
     if (card.term !== undefined) updates.term = card.term;
     if (card.definition !== undefined) updates.definition = card.definition;
@@ -2230,10 +2227,7 @@ export class SupabaseStorage {
   }
 
   async deleteFlashcard(id: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('flashcards')
-      .delete()
-      .eq('id', id);
+    const { error } = await supabase.from('flashcards').delete().eq('id', id);
 
     if (error) {
       console.error('Error deleting flashcard:', error);
@@ -2244,10 +2238,7 @@ export class SupabaseStorage {
   }
 
   async deleteFlashcardsByDeckId(deckId: string): Promise<boolean> {
-    const { error } = await supabase
-      .from('flashcards')
-      .delete()
-      .eq('deck_id', deckId);
+    const { error } = await supabase.from('flashcards').delete().eq('deck_id', deckId);
 
     if (error) {
       console.error('Error deleting flashcards by deck:', error);
@@ -2264,7 +2255,7 @@ export class SupabaseStorage {
    */
   async saveFlashcardDeckWithCards(
     deckInput: InsertFlashcardDeck,
-    cards: Omit<InsertFlashcard, 'deckId'>[]
+    cards: Omit<InsertFlashcard, 'deckId'>[],
   ): Promise<{ deck: FlashcardDeck; cards: Flashcard[] }> {
     // 1. Create deck
     const deck = await this.createFlashcardDeck(deckInput);
@@ -2291,7 +2282,7 @@ export class SupabaseStorage {
   async updateFlashcardDeckWithCards(
     deckId: string,
     deckUpdates: Partial<InsertFlashcardDeck>,
-    cards: Omit<InsertFlashcard, 'deckId'>[]
+    cards: Omit<InsertFlashcard, 'deckId'>[],
   ): Promise<{ deck: FlashcardDeck; cards: Flashcard[] }> {
     // 1. Update deck metadata
     await this.updateFlashcardDeck(deckId, deckUpdates);
@@ -2318,7 +2309,10 @@ export class SupabaseStorage {
   // FLASHCARD STUDY PROGRESS METHODS
   // ========================================
 
-  async getStudyProgress(userId: string, cardId: string): Promise<FlashcardStudyProgress | undefined> {
+  async getStudyProgress(
+    userId: string,
+    cardId: string,
+  ): Promise<FlashcardStudyProgress | undefined> {
     const { data, error } = await supabase
       .from('flashcard_study_progress')
       .select('*')
@@ -2350,7 +2344,9 @@ export class SupabaseStorage {
     return (data || []).map(mapDbToStudyProgress);
   }
 
-  async upsertStudyProgress(progress: InsertFlashcardStudyProgress): Promise<FlashcardStudyProgress | undefined> {
+  async upsertStudyProgress(
+    progress: InsertFlashcardStudyProgress,
+  ): Promise<FlashcardStudyProgress | undefined> {
     const { data, error } = await supabase
       .from('flashcard_study_progress')
       .upsert(
@@ -2364,7 +2360,7 @@ export class SupabaseStorage {
           last_reviewed: progress.lastReviewed || null,
           quality: progress.quality ?? 0,
         },
-        { onConflict: 'user_id,card_id' }
+        { onConflict: 'user_id,card_id' },
       )
       .select()
       .single();
