@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import { User, onAuthStateChanged } from "firebase/auth";
 import { auth, handleAuthRedirect, getUserData, signInWithGoogle, signUpWithEmail, signInWithEmail } from "@/lib/firebase";
 import { supabaseStorage } from "@/lib/supabase-storage";
-import { clearSupabaseToken } from "@/lib/supabase-token";
+import { clearSupabaseToken, ensureSupabaseTokenReady } from "@/lib/supabase-token";
 import { groqAPI } from "@/lib/groq";
 
 interface AuthContextType {
@@ -36,39 +36,33 @@ interface AuthProviderProps {
 const syncUserToDatabase = async (user: User, userData: any) => {
   try {
     console.log('🔄 Syncing user to Supabase database...', user.uid);
-    
-    // Check if user exists in Supabase
-    const existingUser = await supabaseStorage.getUser(user.uid);
-    
-    if (!existingUser) {
-      // Create new user in Supabase
-      await supabaseStorage.createUser({
-        id: user.uid, // Firebase UID as primary key
-        email: user.email!,
-        name: user.displayName || user.email?.split('@')[0] || '',
-        firstName: user.displayName?.split(' ')[0] || null,
-        lastName: user.displayName?.split(' ').slice(1).join(' ') || null,
-        avatar: user.photoURL || null,
-        googleId: userData?.googleId || null,
-        googleAccessToken: userData?.googleAccessToken || null,
-        googleRefreshToken: userData?.googleRefreshToken || null,
-        preferences: {},
-      });
-      console.log('✅ New user created in Supabase');
-    } else {
-      // Update existing user with latest Firebase data
-      await supabaseStorage.updateUser(user.uid, {
-        name: user.displayName || existingUser.name,
-        firstName: user.displayName?.split(' ')[0] || existingUser.firstName,
-        lastName: user.displayName?.split(' ').slice(1).join(' ') || existingUser.lastName,
-        avatar: user.photoURL || existingUser.avatar,
-        googleAccessToken: userData?.googleAccessToken || existingUser.googleAccessToken,
-        googleRefreshToken: userData?.googleRefreshToken || existingUser.googleRefreshToken,
-      });
-      console.log('✅ User synced to Supabase successfully');
+
+    const token = await ensureSupabaseTokenReady(10_000);
+    if (!token) {
+      throw new Error('Supabase token not ready during auth bootstrap');
     }
+
+    const email = user.email || userData?.email;
+    if (!email) {
+      throw new Error('Cannot sync user without email');
+    }
+
+    const syncedUser = await supabaseStorage.upsertUser({
+      uid: user.uid,
+      email,
+      displayName: user.displayName,
+      photoURL: user.photoURL,
+      accessToken: userData?.googleAccessToken || null,
+    });
+
+    if (!syncedUser) {
+      throw new Error('User upsert returned no row');
+    }
+
+    console.log('✅ User synced to Supabase successfully');
   } catch (error) {
     console.error('❌ Error syncing user to Supabase:', error);
+    throw error;
   }
 };
 
@@ -151,29 +145,29 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       if (user) {
         // Keep Groq proxy authenticated
         groqAPI.setUserId(user.uid);
-        // First try to get cached user data immediately
-        const cachedData = getUserDataFromStorage(user.uid);
-        if (cachedData) {
-          setUserData(cachedData);
-          setLoading(false);
-          console.log(' User authenticated with cached data');
-          
-          // Sync user to Supabase database in background
-          syncUserToDatabase(user, cachedData).catch(console.error);
-        } else {
-          // No cache, fetch from Firestore
-          try {
+        try {
+          // First try to get cached user data immediately
+          const cachedData = getUserDataFromStorage(user.uid);
+          if (cachedData) {
+            setUserData(cachedData);
+            console.log(' User authenticated with cached data');
+
+            // Block readiness until token bootstrap + upsert complete.
+            await syncUserToDatabase(user, cachedData);
+          } else {
+            // No cache, fetch from Firestore
             const data = await getUserData(user.uid);
             setUserData(data);
             if (data) {
               saveUserDataToStorage(user.uid, data);
             }
-            
+
             // Sync user to Supabase database
             await syncUserToDatabase(user, data);
-          } catch (error) {
-            console.error("Error fetching user data:", error);
           }
+        } catch (error) {
+          console.error("Error fetching user data:", error);
+        } finally {
           setLoading(false);
         }
       } else {
