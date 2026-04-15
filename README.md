@@ -5,6 +5,10 @@
 [![Frontend: React + Vite][vite-badge]][vite-url]
 [![Database: Supabase PostgreSQL][supabase-badge]][supabase-url]
 
+<p align="center">
+	<img src="images/alteon.png" alt="Alteon Dashboard" />
+</p>
+
 Alteon is an all-in-one student productivity platform for planning, note-taking, assignments, and study workflows.
 
 Architecture used:
@@ -18,10 +22,6 @@ Key features:
 - Unified calendar + assignment tracking and sync
 - Study tools (flashcards, Pomodoro, analytics)
 - Dashboard workflows for daily planning and progress
-
-<p align="center">
-	<img src="images/alteon.png" alt="Alteon Dashboard" />
-</p>
 
 ## Installation
 
