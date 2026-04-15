@@ -1,9 +1,11 @@
 <h1 align="center">Alteon</h1>
 <p align="center"><strong>AI-powered student productivity for notes, assignments, scheduling, and study workflows in one academic workspace.</strong></p>
 
-[![License: MIT][license-badge]][license-url]
-[![Frontend: React + Vite][vite-badge]][vite-url]
-[![Database: Supabase PostgreSQL][supabase-badge]][supabase-url]
+<p align="center">
+	<a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg?style=flat-square" alt="License: MIT" /></a>
+	<a href="https://vitejs.dev/"><img src="https://img.shields.io/badge/frontend-React%20%2B%20Vite-646CFF.svg?style=flat-square" alt="Frontend: React + Vite" /></a>
+	<a href="https://supabase.com/"><img src="https://img.shields.io/badge/database-Supabase-3ECF8E.svg?style=flat-square" alt="Database: Supabase PostgreSQL" /></a>
+</p>
 
 <p align="center">
 	<img src="images/alteon.png" alt="Alteon Dashboard" />
