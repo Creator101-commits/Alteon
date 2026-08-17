@@ -14,8 +14,6 @@ interface AuthContextType {
   signUpWithEmailPassword: (email: string, password: string, displayName: string) => Promise<void>;
   signOut: () => Promise<void>;
   hasGoogleAccess: boolean;
-  hasGoogleCalendar: boolean;
-  restoreUserData: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -115,29 +113,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  const restoreUserData = async () => {
-    if (!user?.uid) return;
-
-    try {
-      // First try to get cached user data
-      let data = getUserDataFromStorage(user.uid);
-      
-      if (!data) {
-        // If no cache, fetch from Firestore
-        data = await getUserData(user.uid);
-        if (data) {
-          saveUserDataToStorage(user.uid, data);
-        }
-      } else {
-        console.log(' Restored user data from cache');
-      }
-
-      setUserData(data);
-    } catch (error) {
-      console.error("Error restoring user data:", error);
-    }
-  };
-
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
@@ -146,28 +121,28 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         // Keep Groq proxy authenticated
         groqAPI.setUserId(user.uid);
         try {
-          // First try to get cached user data immediately
+          // Use cached profile data when available; otherwise fetch it once.
           const cachedData = getUserDataFromStorage(user.uid);
-          if (cachedData) {
-            setUserData(cachedData);
-            console.log(' User authenticated with cached data');
-
-            // Block readiness until token bootstrap + upsert complete.
-            await syncUserToDatabase(user, cachedData);
+          let data = cachedData;
+          if (data) {
+            setUserData(data);
           } else {
-            // No cache, fetch from Firestore
-            const data = await getUserData(user.uid);
+            data = await getUserData(user.uid);
             setUserData(data);
             if (data) {
               saveUserDataToStorage(user.uid, data);
             }
-
-            // Sync user to Supabase database
-            await syncUserToDatabase(user, data);
           }
+
+          // Token exchange is required by the first protected query. The user
+          // upsert is independent, so it no longer blocks the first screen.
+          await ensureSupabaseTokenReady(10_000);
+          setLoading(false);
+          void syncUserToDatabase(user, data).catch((error) => {
+            console.error("Error syncing user to Supabase:", error);
+          });
         } catch (error) {
           console.error("Error fetching user data:", error);
-        } finally {
           setLoading(false);
         }
       } else {
@@ -222,7 +197,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const hasGoogleAccess = userData?.hasGoogleAccess === true;
-  const hasGoogleCalendar = userData?.hasGoogleCalendar === true;
 
   const value = {
     user,
@@ -233,8 +207,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     signUpWithEmailPassword,
     signOut,
     hasGoogleAccess,
-    hasGoogleCalendar,
-    restoreUserData,
   };
 
   return (

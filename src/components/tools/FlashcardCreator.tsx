@@ -325,7 +325,7 @@ function AIChatSidebar({ isOpen, onToggle, onCardsGenerated, currentTitle, curre
           })).filter((c: FlashcardData) => c.term && c.definition);
         }
       }
-    } catch {}
+    } catch { /* Try the next response shape. */ }
 
     // Second try: extract JSON array from within text (e.g. if model adds explanation around it)
     try {
@@ -340,7 +340,7 @@ function AIChatSidebar({ isOpen, onToggle, onCardsGenerated, currentTitle, curre
           })).filter((c: FlashcardData) => c.term && c.definition);
         }
       }
-    } catch {}
+    } catch { /* Try the next response shape. */ }
 
     // Third try: look for ```json code blocks
     try {
@@ -355,7 +355,7 @@ function AIChatSidebar({ isOpen, onToggle, onCardsGenerated, currentTitle, curre
           })).filter((c: FlashcardData) => c.term && c.definition);
         }
       }
-    } catch {}
+    } catch { /* Try the next response shape. */ }
 
     return null;
   };

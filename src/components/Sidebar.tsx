@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { useHAC } from "@/contexts/HACContext";
 import {
   LayoutDashboard,
   BookOpen,
@@ -18,7 +17,6 @@ interface NavItem {
   href: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  requiresHAC?: boolean;
 }
 
 const navigationItems: NavItem[] = [
@@ -26,7 +24,7 @@ const navigationItems: NavItem[] = [
   { href: "/assignments", label: "Assignments", icon: BookOpen },
   { href: "/classes", label: "Classes", icon: GraduationCap },
   { href: "/files", label: "Files", icon: FolderOpen },
-  { href: "/hac-grades", label: "HAC Grades", icon: School, requiresHAC: true },
+  { href: "/hac-grades", label: "HAC Grades", icon: School },
   { href: "/learn", label: "Learn", icon: Wrench },
   { href: "/ai-chat", label: "AI Chatbot", icon: Bot },
   { href: "/settings", label: "Settings", icon: Settings },
@@ -34,14 +32,9 @@ const navigationItems: NavItem[] = [
 
 export const Sidebar = () => {
   const [location] = useLocation();
-  const { isConnected: hacConnected } = useHAC();
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Filter items based on conditions
-  const visibleItems = navigationItems.filter(item => {
-    if (item.requiresHAC && !hacConnected) return false;
-    return true;
-  });
+  const visibleItems = navigationItems;
 
   return (
     <aside 

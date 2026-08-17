@@ -3,18 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/contexts/AuthContext";
-import { storage } from "@/lib/supabase-storage";
-import { PomodoroSession, InsertPomodoroSession } from "@shared/schema";
 import ElasticSlider from "@/components/ui/ElasticSlider";
 import {
   Play,
   Pause,
   Square,
   RotateCcw,
-  Settings,
   Clock,
   Coffee,
   Volume2,
@@ -40,6 +35,13 @@ type FocusSound = {
   description: string;
 };
 
+const TIMER_SETTINGS: TimerSettings = {
+  workDuration: 25 * 60,
+  shortBreakDuration: 5 * 60,
+  longBreakDuration: 15 * 60,
+  longBreakInterval: 4,
+};
+
 const focusSounds: FocusSound[] = [
   {
     id: "rain",
@@ -62,7 +64,6 @@ const focusSounds: FocusSound[] = [
 ];
 
 export const PomodoroTimer = () => {
-  const { user } = useAuth();
   const { toast } = useToast();
   
   const [timeLeft, setTimeLeft] = useState(25 * 60); // 25 minutes in seconds
@@ -76,23 +77,16 @@ export const PomodoroTimer = () => {
   const [audioRef, setAudioRef] = useState<HTMLAudioElement | null>(null);
   const [isFullScreen, setIsFullScreen] = useState(false);
 
-  const settings: TimerSettings = {
-    workDuration: 25 * 60,
-    shortBreakDuration: 5 * 60,
-    longBreakDuration: 15 * 60,
-    longBreakInterval: 4,
-  };
-
   const getCurrentDuration = useCallback(() => {
     switch (mode) {
       case "work":
-        return settings.workDuration;
+        return TIMER_SETTINGS.workDuration;
       case "shortBreak":
-        return settings.shortBreakDuration;
+        return TIMER_SETTINGS.shortBreakDuration;
       case "longBreak":
-        return settings.longBreakDuration;
+        return TIMER_SETTINGS.longBreakDuration;
     }
-  }, [mode, settings]);
+  }, [mode]);
 
   const formatTime = (seconds: number) => {
     const minutes = Math.floor(seconds / 60);
@@ -103,24 +97,6 @@ export const PomodoroTimer = () => {
   const getProgress = () => {
     const totalDuration = getCurrentDuration();
     return ((totalDuration - timeLeft) / totalDuration) * 100;
-  };
-
-  // Save pomodoro session to database
-  const savePomodoroSession = async (sessionType: string, duration: number, completed: boolean) => {
-    if (!user?.uid) return;
-
-    try {
-      const sessionData = {
-        userId: user.uid,
-        type: sessionType,
-        duration,
-      };
-
-      await storage.createPomodoroSession(sessionData);
-      console.log('Pomodoro session saved to database');
-    } catch (error) {
-      console.error('Error saving pomodoro session:', error);
-    }
   };
 
   const playNotificationSound = () => {
@@ -151,7 +127,7 @@ export const PomodoroTimer = () => {
           // Fallback to synthetic sounds if audio file fails
           playFallbackSound();
         });
-      } catch (error) {
+      } catch {
         // Fallback to synthetic sounds
         playFallbackSound();
       }
@@ -228,12 +204,8 @@ export const PomodoroTimer = () => {
     }
   };
 
-  const handleTimerComplete = useCallback(async () => {
+  const handleTimerComplete = useCallback(() => {
     playNotificationSound();
-    
-    // Save the completed session to database
-    const duration = getCurrentDuration();
-    await savePomodoroSession(mode, duration, true);
     
     if (mode === "work") {
       const newCompletedPomodoros = completedPomodoros + 1;
@@ -241,11 +213,11 @@ export const PomodoroTimer = () => {
       setTotalSessions(prev => prev + 1);
       
       // Determine next break type
-      const shouldTakeLongBreak = newCompletedPomodoros % settings.longBreakInterval === 0;
+      const shouldTakeLongBreak = newCompletedPomodoros % TIMER_SETTINGS.longBreakInterval === 0;
       const nextMode = shouldTakeLongBreak ? "longBreak" : "shortBreak";
       
       setMode(nextMode);
-      setTimeLeft(nextMode === "longBreak" ? settings.longBreakDuration : settings.shortBreakDuration);
+      setTimeLeft(nextMode === "longBreak" ? TIMER_SETTINGS.longBreakDuration : TIMER_SETTINGS.shortBreakDuration);
       
       toast({
         title: "Work session complete!",
@@ -253,7 +225,7 @@ export const PomodoroTimer = () => {
       });
     } else {
       setMode("work");
-      setTimeLeft(settings.workDuration);
+      setTimeLeft(TIMER_SETTINGS.workDuration);
       setTotalSessions(prev => prev + 1);
       
       toast({
@@ -263,24 +235,23 @@ export const PomodoroTimer = () => {
     }
     
     setIsRunning(false);
-  }, [mode, completedPomodoros, settings, toast]);
+  }, [mode, completedPomodoros, toast]);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    if (!isRunning) return;
 
-    if (isRunning && timeLeft > 0) {
-      interval = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            handleTimerComplete();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
+    const interval = window.setInterval(() => {
+      setTimeLeft((prev) => Math.max(prev - 1, 0));
+    }, 1000);
 
-    return () => clearInterval(interval);
+    return () => window.clearInterval(interval);
+  }, [isRunning]);
+
+  useEffect(() => {
+    if (!isRunning || timeLeft !== 0) return;
+
+    setIsRunning(false);
+    handleTimerComplete();
   }, [isRunning, timeLeft, handleTimerComplete]);
 
   // Cleanup audio on unmount
@@ -316,7 +287,7 @@ export const PomodoroTimer = () => {
   const handleReset = () => {
     setIsRunning(false);
     setMode("work");
-    setTimeLeft(settings.workDuration);
+    setTimeLeft(TIMER_SETTINGS.workDuration);
     setCompletedPomodoros(0);
     setTotalSessions(0);
   };
@@ -454,11 +425,11 @@ export const PomodoroTimer = () => {
 
         {/* Session Progress */}
         <div className="flex justify-center space-x-2">
-          {Array.from({ length: settings.longBreakInterval }).map((_, index) => (
+          {Array.from({ length: TIMER_SETTINGS.longBreakInterval }).map((_, index) => (
             <div
               key={index}
               className={`w-6 h-6 rounded-full border-2 ${
-                index < completedPomodoros % settings.longBreakInterval
+                index < completedPomodoros % TIMER_SETTINGS.longBreakInterval
                   ? "bg-green-500 border-green-500"
                   : "border-muted-foreground"
               }`}
@@ -638,18 +609,18 @@ export const PomodoroTimer = () => {
         <div className="space-y-2">
           <div className="text-sm font-medium">Session Pattern</div>
           <div className="flex space-x-1">
-            {Array.from({ length: settings.longBreakInterval }).map((_, index) => (
+            {Array.from({ length: TIMER_SETTINGS.longBreakInterval }).map((_, index) => (
               <div
                 key={index}
                 className={`w-4 h-4 rounded-full border-2 ${
-                  index < completedPomodoros % settings.longBreakInterval
+                  index < completedPomodoros % TIMER_SETTINGS.longBreakInterval
                     ? "bg-green-500 border-green-500"
                     : "border-muted-foreground"
                 }`}
               />
             ))}
             <div className="text-xs text-muted-foreground ml-2">
-              {settings.longBreakInterval - (completedPomodoros % settings.longBreakInterval)} until long break
+              {TIMER_SETTINGS.longBreakInterval - (completedPomodoros % TIMER_SETTINGS.longBreakInterval)} until long break
             </div>
           </div>
         </div>

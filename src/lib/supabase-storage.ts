@@ -7,12 +7,6 @@ import type {
   InsertClass,
   Assignment,
   InsertAssignment,
-  MoodEntry,
-  InsertMoodEntry,
-  JournalEntry,
-  InsertJournalEntry,
-  PomodoroSession,
-  InsertPomodoroSession,
   AiSummary,
   InsertAiSummary,
   Habit,
@@ -29,22 +23,14 @@ import type {
   InsertTodoList,
   Card,
   InsertCard,
-  Checklist,
-  InsertChecklist,
   Label,
   InsertLabel,
   QuickTask,
   InsertQuickTask,
-  UserStats,
-  InsertUserStats,
-  UserAchievement,
-  InsertUserAchievement,
   FlashcardDeck,
   InsertFlashcardDeck,
   Flashcard,
   InsertFlashcard,
-  FlashcardStudyProgress,
-  InsertFlashcardStudyProgress,
 } from '@shared/schema';
 
 /**
@@ -122,22 +108,6 @@ function mapDbToFlashcard(row: any): Flashcard {
   };
 }
 
-// Helper to map snake_case DB response to camelCase FlashcardStudyProgress type
-function mapDbToStudyProgress(row: any): FlashcardStudyProgress {
-  return {
-    id: row.id,
-    userId: row.user_id,
-    cardId: row.card_id,
-    easeFactor: row.ease_factor ?? 2.5,
-    intervalDays: row.interval_days ?? 0,
-    repetitions: row.repetitions ?? 0,
-    nextReview: row.next_review,
-    lastReviewed: row.last_reviewed,
-    quality: row.quality ?? 0,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
 
 export class SupabaseStorage {
   // ========================================
@@ -178,22 +148,6 @@ export class SupabaseStorage {
     return await this.decryptUserTokens(data as User);
   }
 
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email)
-      .maybeSingle();
-
-    if (error) {
-      console.error('Error fetching user by email:', error);
-      return undefined;
-    }
-
-    if (!data) return undefined;
-
-    return await this.decryptUserTokens(data as User);
-  }
 
   async createUser(user: InsertUser & { id: string }): Promise<User> {
     // Encrypt OAuth tokens before storing
@@ -438,33 +392,6 @@ export class SupabaseStorage {
     return data as Assignment;
   }
 
-  async updateAssignment(
-    id: string,
-    assignment: Partial<InsertAssignment>,
-  ): Promise<Assignment | undefined> {
-    const updates: any = {};
-    if (assignment.title !== undefined) updates.title = assignment.title;
-    if (assignment.description !== undefined) updates.description = assignment.description;
-    if (assignment.dueDate !== undefined) updates.due_date = assignment.dueDate;
-    if (assignment.status !== undefined) updates.status = assignment.status;
-    if (assignment.priority !== undefined) updates.priority = assignment.priority;
-    if (assignment.completedAt !== undefined) updates.completed_at = assignment.completedAt;
-    if (assignment.syncStatus !== undefined) updates.sync_status = assignment.syncStatus;
-
-    const { data, error } = await supabase
-      .from('assignments')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating assignment:', error);
-      return undefined;
-    }
-
-    return data as Assignment;
-  }
 
   async deleteAssignment(id: string): Promise<boolean> {
     const { error } = await supabase.from('assignments').delete().eq('id', id);
@@ -496,16 +423,6 @@ export class SupabaseStorage {
     return (data || []).map(mapDbToFolder);
   }
 
-  async getFolder(id: string): Promise<Folder | undefined> {
-    const { data, error } = await supabase.from('folders').select('*').eq('id', id).single();
-
-    if (error) {
-      console.error('Error fetching folder:', error);
-      return undefined;
-    }
-
-    return mapDbToFolder(data);
-  }
 
   async createFolder(folder: InsertFolder): Promise<Folder> {
     const { data, error } = await supabase
@@ -645,71 +562,6 @@ export class SupabaseStorage {
     return mapDbToNote(data);
   }
 
-  async deleteNote(id: string): Promise<boolean> {
-    const { error } = await supabase.from('notes').delete().eq('id', id);
-
-    if (error) {
-      console.error('Error deleting note:', error);
-      return false;
-    }
-
-    return true;
-  }
-
-  // ========================================
-  // MOOD ENTRY METHODS (Table dropped - returning empty)
-  // ========================================
-
-  async getMoodEntriesByUserId(userId: string): Promise<MoodEntry[]> {
-    // Table was dropped in migration 005 - return empty array
-    return [];
-  }
-
-  async createMoodEntry(entry: InsertMoodEntry): Promise<MoodEntry> {
-    // Table was dropped - throw informative error
-    throw new Error('Mood entries feature has been removed');
-  }
-
-  // ========================================
-  // JOURNAL ENTRY METHODS (Table dropped - returning empty)
-  // ========================================
-
-  async getJournalEntriesByUserId(userId: string): Promise<JournalEntry[]> {
-    // Table was dropped in migration 005 - return empty array
-    return [];
-  }
-
-  async createJournalEntry(entry: InsertJournalEntry): Promise<JournalEntry> {
-    // Table was dropped - throw informative error
-    throw new Error('Journal entries feature has been removed');
-  }
-
-  async updateJournalEntry(
-    id: string,
-    entry: Partial<InsertJournalEntry>,
-  ): Promise<JournalEntry | undefined> {
-    // Table was dropped
-    return undefined;
-  }
-
-  async deleteJournalEntry(id: string): Promise<boolean> {
-    // Table was dropped
-    return false;
-  }
-
-  // ========================================
-  // POMODORO SESSION METHODS (Table dropped - returning empty)
-  // ========================================
-
-  async getPomodoroSessionsByUserId(userId: string): Promise<PomodoroSession[]> {
-    // Table was dropped in migration 005 - return empty array
-    return [];
-  }
-
-  async createPomodoroSession(session: InsertPomodoroSession): Promise<PomodoroSession> {
-    // Table was dropped - throw informative error
-    throw new Error('Pomodoro sessions feature has been removed');
-  }
 
   // ========================================
   // CALENDAR EVENT METHODS
@@ -978,16 +830,6 @@ export class SupabaseStorage {
     return data as Board[];
   }
 
-  async getBoard(id: string): Promise<Board | undefined> {
-    const { data, error } = await supabase.from('boards').select('*').eq('id', id).single();
-
-    if (error) {
-      console.error('Error fetching board:', error);
-      return undefined;
-    }
-
-    return data as Board;
-  }
 
   async createBoard(board: InsertBoard): Promise<Board> {
     const { data, error } = await supabase
@@ -1137,37 +979,7 @@ export class SupabaseStorage {
   // CARD METHODS
   // ========================================
 
-  async getCardsByUserId(userId: string): Promise<Card[]> {
-    const { data, error } = await supabase
-      .from('cards')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_archived', false)
-      .order('position', { ascending: true });
 
-    if (error) {
-      console.error('Error fetching cards:', error);
-      return [];
-    }
-
-    return data as Card[];
-  }
-
-  async getCardsByListId(listId: string): Promise<Card[]> {
-    const { data, error } = await supabase
-      .from('cards')
-      .select('*')
-      .eq('list_id', listId)
-      .eq('is_archived', false)
-      .order('position', { ascending: true });
-
-    if (error) {
-      console.error('Error fetching cards by list:', error);
-      return [];
-    }
-
-    return data as Card[];
-  }
 
   async getCardsByBoardId(boardId: string): Promise<Card[]> {
     // Get all lists for this board first
@@ -1236,30 +1048,6 @@ export class SupabaseStorage {
     })) as Card[];
   }
 
-  async getCard(id: string): Promise<Card | undefined> {
-    const { data, error } = await supabase.from('cards').select('*').eq('id', id).single();
-
-    if (error) {
-      console.error('Error fetching card:', error);
-      return undefined;
-    }
-
-    // Map snake_case to camelCase
-    return {
-      id: data.id,
-      userId: data.user_id,
-      listId: data.list_id,
-      originalListId: data.original_list_id,
-      title: data.title,
-      description: data.description,
-      position: data.position,
-      dueDate: data.due_date,
-      isCompleted: data.is_completed,
-      isArchived: data.is_archived,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-    } as Card;
-  }
 
   async createCard(card: InsertCard): Promise<Card> {
     const { data, error } = await supabase
@@ -1351,79 +1139,6 @@ export class SupabaseStorage {
     return true;
   }
 
-  // ========================================
-  // CHECKLIST METHODS
-  // ========================================
-
-  async getChecklistsByCardId(cardId: string): Promise<Checklist[]> {
-    const { data, error } = await supabase
-      .from('checklists')
-      .select('*')
-      .eq('card_id', cardId)
-      .order('position', { ascending: true });
-
-    if (error) {
-      console.error('Error fetching checklists:', error);
-      return [];
-    }
-
-    return data as Checklist[];
-  }
-
-  async createChecklist(checklist: InsertChecklist): Promise<Checklist> {
-    const { data, error } = await supabase
-      .from('checklists')
-      .insert({
-        card_id: checklist.cardId,
-        title: checklist.title,
-        is_checked: checklist.isChecked || false,
-        position: checklist.position || 0,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error creating checklist:', error);
-      throw new Error(`Failed to create checklist: ${error.message}`);
-    }
-
-    return data as Checklist;
-  }
-
-  async updateChecklist(
-    id: string,
-    checklist: Partial<InsertChecklist>,
-  ): Promise<Checklist | undefined> {
-    const updates: any = {};
-    if (checklist.title !== undefined) updates.title = checklist.title;
-    if (checklist.isChecked !== undefined) updates.is_checked = checklist.isChecked;
-    if (checklist.position !== undefined) updates.position = checklist.position;
-
-    const { data, error } = await supabase
-      .from('checklists')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating checklist:', error);
-      return undefined;
-    }
-
-    return data as Checklist;
-  }
-
-  async deleteChecklist(id: string): Promise<boolean> {
-    const { error } = await supabase.from('checklists').delete().eq('id', id);
-
-    if (error) {
-      console.error('Error deleting checklist:', error);
-      return false;
-    }
-
-    return true;
-  }
 
   // ========================================
   // LABEL METHODS
@@ -1521,19 +1236,6 @@ export class SupabaseStorage {
     return true;
   }
 
-  async getCardLabels(cardId: string): Promise<Label[]> {
-    const { data, error } = await supabase
-      .from('card_labels')
-      .select('label_id, labels(*)')
-      .eq('card_id', cardId);
-
-    if (error) {
-      console.error('Error fetching card labels:', error);
-      return [];
-    }
-
-    return data.map((item: any) => item.labels) as Label[];
-  }
 
   // ========================================
   // QUICK TASK METHODS
@@ -1607,281 +1309,6 @@ export class SupabaseStorage {
     return true;
   }
 
-  // ========================================
-  // USER STATS METHODS (for gamification)
-  // ========================================
-
-  async getUserStats(userId: string): Promise<UserStats | undefined> {
-    const { data, error } = await supabase
-      .from('user_stats')
-      .select('*')
-      .eq('user_id', userId)
-      .single();
-
-    if (error) {
-      if (error.code === 'PGRST116') return undefined; // Not found
-      console.error('Error fetching user stats:', error);
-      return undefined;
-    }
-
-    return {
-      id: data.id,
-      userId: data.user_id,
-      totalTasksCompleted: data.total_tasks_completed,
-      totalStudyMinutes: data.total_study_minutes,
-      totalAssignmentsCompleted: data.total_assignments_completed,
-      totalNotesCreated: data.total_notes_created,
-      currentStreak: data.current_streak,
-      longestStreak: data.longest_streak,
-      lastActivityDate: data.last_activity_date,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-    } as UserStats;
-  }
-
-  async createOrUpdateUserStats(
-    userId: string,
-    stats: Partial<InsertUserStats>,
-  ): Promise<UserStats | undefined> {
-    // First check if stats exist
-    const existing = await this.getUserStats(userId);
-
-    if (existing) {
-      // Update existing stats
-      const updates: any = {};
-      if (stats.totalTasksCompleted !== undefined)
-        updates.total_tasks_completed = stats.totalTasksCompleted;
-      if (stats.totalStudyMinutes !== undefined)
-        updates.total_study_minutes = stats.totalStudyMinutes;
-      if (stats.totalAssignmentsCompleted !== undefined)
-        updates.total_assignments_completed = stats.totalAssignmentsCompleted;
-      if (stats.totalNotesCreated !== undefined)
-        updates.total_notes_created = stats.totalNotesCreated;
-      if (stats.currentStreak !== undefined) updates.current_streak = stats.currentStreak;
-      if (stats.longestStreak !== undefined) updates.longest_streak = stats.longestStreak;
-      if (stats.lastActivityDate !== undefined) updates.last_activity_date = stats.lastActivityDate;
-      updates.updated_at = new Date().toISOString();
-
-      const { data, error } = await supabase
-        .from('user_stats')
-        .update(updates)
-        .eq('user_id', userId)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error updating user stats:', error);
-        return undefined;
-      }
-
-      return {
-        id: data.id,
-        userId: data.user_id,
-        totalTasksCompleted: data.total_tasks_completed,
-        totalStudyMinutes: data.total_study_minutes,
-        totalAssignmentsCompleted: data.total_assignments_completed,
-        totalNotesCreated: data.total_notes_created,
-        currentStreak: data.current_streak,
-        longestStreak: data.longest_streak,
-        lastActivityDate: data.last_activity_date,
-        createdAt: data.created_at,
-        updatedAt: data.updated_at,
-      } as UserStats;
-    } else {
-      // Create new stats
-      const { data, error } = await supabase
-        .from('user_stats')
-        .insert({
-          user_id: userId,
-          total_tasks_completed: stats.totalTasksCompleted || 0,
-          total_study_minutes: stats.totalStudyMinutes || 0,
-          total_assignments_completed: stats.totalAssignmentsCompleted || 0,
-          total_notes_created: stats.totalNotesCreated || 0,
-          current_streak: stats.currentStreak || 0,
-          longest_streak: stats.longestStreak || 0,
-          last_activity_date: stats.lastActivityDate || null,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error creating user stats:', error);
-        return undefined;
-      }
-
-      return {
-        id: data.id,
-        userId: data.user_id,
-        totalTasksCompleted: data.total_tasks_completed,
-        totalStudyMinutes: data.total_study_minutes,
-        totalAssignmentsCompleted: data.total_assignments_completed,
-        totalNotesCreated: data.total_notes_created,
-        currentStreak: data.current_streak,
-        longestStreak: data.longest_streak,
-        lastActivityDate: data.last_activity_date,
-        createdAt: data.created_at,
-        updatedAt: data.updated_at,
-      } as UserStats;
-    }
-  }
-
-  async incrementUserStat(
-    userId: string,
-    stat: keyof InsertUserStats,
-    amount: number = 1,
-  ): Promise<UserStats | undefined> {
-    const existing = await this.getUserStats(userId);
-    const currentValue = existing ? (existing[stat as keyof UserStats] as number) || 0 : 0;
-    return this.createOrUpdateUserStats(userId, {
-      [stat]: currentValue + amount,
-    } as Partial<InsertUserStats>);
-  }
-
-  // ========================================
-  // USER ACHIEVEMENTS METHODS
-  // ========================================
-
-  async getUserAchievements(userId: string): Promise<UserAchievement[]> {
-    const { data, error } = await supabase
-      .from('user_achievements')
-      .select('*')
-      .eq('user_id', userId)
-      .order('unlocked_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching user achievements:', error);
-      return [];
-    }
-
-    return (data || []).map((achievement) => ({
-      id: achievement.id,
-      userId: achievement.user_id,
-      achievementId: achievement.achievement_id,
-      unlockedAt: achievement.unlocked_at,
-      progress: achievement.progress,
-      metadata: achievement.metadata,
-    })) as UserAchievement[];
-  }
-
-  async getAchievement(
-    userId: string,
-    achievementId: string,
-  ): Promise<UserAchievement | undefined> {
-    const { data, error } = await supabase
-      .from('user_achievements')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('achievement_id', achievementId)
-      .single();
-
-    if (error) {
-      if (error.code === 'PGRST116') return undefined; // Not found
-      console.error('Error fetching achievement:', error);
-      return undefined;
-    }
-
-    return {
-      id: data.id,
-      userId: data.user_id,
-      achievementId: data.achievement_id,
-      unlockedAt: data.unlocked_at,
-      progress: data.progress,
-      metadata: data.metadata,
-    } as UserAchievement;
-  }
-
-  async unlockAchievement(
-    userId: string,
-    achievementId: string,
-    metadata: any = {},
-  ): Promise<UserAchievement | undefined> {
-    // Check if already unlocked
-    const existing = await this.getAchievement(userId, achievementId);
-    if (existing) return existing;
-
-    const { data, error } = await supabase
-      .from('user_achievements')
-      .insert({
-        user_id: userId,
-        achievement_id: achievementId,
-        progress: 100,
-        metadata,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error unlocking achievement:', error);
-      return undefined;
-    }
-
-    return {
-      id: data.id,
-      userId: data.user_id,
-      achievementId: data.achievement_id,
-      unlockedAt: data.unlocked_at,
-      progress: data.progress,
-      metadata: data.metadata,
-    } as UserAchievement;
-  }
-
-  async updateAchievementProgress(
-    userId: string,
-    achievementId: string,
-    progress: number,
-  ): Promise<UserAchievement | undefined> {
-    const existing = await this.getAchievement(userId, achievementId);
-
-    if (existing) {
-      // Update progress
-      const { data, error } = await supabase
-        .from('user_achievements')
-        .update({ progress })
-        .eq('user_id', userId)
-        .eq('achievement_id', achievementId)
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error updating achievement progress:', error);
-        return undefined;
-      }
-
-      return {
-        id: data.id,
-        userId: data.user_id,
-        achievementId: data.achievement_id,
-        unlockedAt: data.unlocked_at,
-        progress: data.progress,
-        metadata: data.metadata,
-      } as UserAchievement;
-    } else {
-      // Create with progress
-      const { data, error } = await supabase
-        .from('user_achievements')
-        .insert({
-          user_id: userId,
-          achievement_id: achievementId,
-          progress,
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Error creating achievement with progress:', error);
-        return undefined;
-      }
-
-      return {
-        id: data.id,
-        userId: data.user_id,
-        achievementId: data.achievement_id,
-        unlockedAt: data.unlocked_at,
-        progress: data.progress,
-        metadata: data.metadata,
-      } as UserAchievement;
-    }
-  }
 
   // ========================================
   // USER SETTINGS METHODS (dashboard widgets, notifications, etc.)
@@ -1890,20 +1317,12 @@ export class SupabaseStorage {
   async updateUserSettings(
     userId: string,
     settings: {
-      dashboardWidgets?: any[];
-      notificationSettings?: any;
       gpaExcludedCourses?: string[];
-      preferences?: any;
     },
   ): Promise<User | undefined> {
     const updates: any = {};
-    if (settings.dashboardWidgets !== undefined)
-      updates.dashboard_widgets = settings.dashboardWidgets;
-    if (settings.notificationSettings !== undefined)
-      updates.notification_settings = settings.notificationSettings;
     if (settings.gpaExcludedCourses !== undefined)
       updates.gpa_excluded_courses = settings.gpaExcludedCourses;
-    if (settings.preferences !== undefined) updates.preferences = settings.preferences;
     updates.updated_at = new Date().toISOString();
 
     const { data, error } = await supabase
@@ -1921,25 +1340,6 @@ export class SupabaseStorage {
     return data as User;
   }
 
-  async getDashboardWidgets(userId: string): Promise<any[]> {
-    const user = await this.getUser(userId);
-    return (user?.dashboardWidgets as any[]) || [];
-  }
-
-  async saveDashboardWidgets(userId: string, widgets: any[]): Promise<boolean> {
-    const result = await this.updateUserSettings(userId, { dashboardWidgets: widgets });
-    return !!result;
-  }
-
-  async getNotificationSettings(userId: string): Promise<any> {
-    const user = await this.getUser(userId);
-    return (user?.notificationSettings as any) || {};
-  }
-
-  async saveNotificationSettings(userId: string, settings: any): Promise<boolean> {
-    const result = await this.updateUserSettings(userId, { notificationSettings: settings });
-    return !!result;
-  }
 
   async getGpaExcludedCourses(userId: string): Promise<string[]> {
     const user = await this.getUser(userId);
@@ -1951,89 +1351,6 @@ export class SupabaseStorage {
     return !!result;
   }
 
-  // ========================================
-  // ANALYTICS METHOD
-  // ========================================
-
-  async getUserAnalytics(userId: string): Promise<any> {
-    // Aggregate analytics from various tables
-    const analytics: any = {
-      totalClasses: 0,
-      totalAssignments: 0,
-      completedAssignments: 0,
-      totalFlashcards: 0, // Will be updated when new flashcard system is built
-      totalNotes: 0,
-      totalBoards: 0,
-      totalCards: 0,
-    };
-
-    try {
-      const [classes, assignments, notes, boards, cards] = await Promise.all([
-        this.getClassesByUserId(userId),
-        this.getAssignmentsByUserId(userId),
-        this.getNotesByUserId(userId),
-        this.getBoardsByUserId(userId),
-        this.getCardsByUserId(userId),
-      ]);
-
-      analytics.totalClasses = classes.length;
-      analytics.totalAssignments = assignments.length;
-      analytics.completedAssignments = assignments.filter(
-        (a: any) => a.status === 'completed',
-      ).length;
-      // analytics.totalFlashcards will be 0 until new system is built
-      analytics.totalNotes = notes.length;
-      analytics.totalBoards = boards.length;
-      analytics.totalCards = cards.length;
-
-      return analytics;
-    } catch (error) {
-      console.error('Error fetching user analytics:', error);
-      return analytics;
-    }
-  }
-
-  // ========================================
-  // ALIAS METHODS (for compatibility)
-  // ========================================
-
-  // Quick tasks aliases
-  getQuickTasks = this.getQuickTasksByUserId.bind(this);
-
-  // Class aliases
-  getClassesForUser(userId: string) {
-    return this.getClassesByUserId(userId);
-  }
-
-  // Assignment aliases
-  getAssignmentsForUser(userId: string) {
-    return this.getAssignmentsByUserId(userId);
-  }
-
-  // Board aliases
-  getBoardsForUser(userId: string) {
-    return this.getBoardsByUserId(userId);
-  }
-
-  getListsForBoard(boardId: string) {
-    return this.getListsByBoardId(boardId);
-  }
-
-  getCardsForBoard(boardId: string) {
-    return this.getCardsByBoardId(boardId);
-  }
-
-  getLabelsForUser(userId: string) {
-    return this.getLabelsByUserId(userId);
-  }
-
-  getInboxCardsForUser(userId: string) {
-    return this.getInboxCards(userId);
-  }
-
-  getHabitsForUser(userId: string) {
-    return this.getHabitsByUserId(userId);
-  }
 
   // ========================================
   // FLASHCARD DECK METHODS
@@ -2197,34 +1514,6 @@ export class SupabaseStorage {
     return (data || []).map(mapDbToFlashcard);
   }
 
-  async updateFlashcard(
-    id: string,
-    card: Partial<InsertFlashcard>,
-  ): Promise<Flashcard | undefined> {
-    const updates: any = {};
-    if (card.term !== undefined) updates.term = card.term;
-    if (card.definition !== undefined) updates.definition = card.definition;
-    if (card.termImage !== undefined) updates.term_image = card.termImage;
-    if (card.definitionImage !== undefined) updates.definition_image = card.definitionImage;
-    if (card.termAudio !== undefined) updates.term_audio = card.termAudio;
-    if (card.definitionAudio !== undefined) updates.definition_audio = card.definitionAudio;
-    if (card.position !== undefined) updates.position = card.position;
-    if (card.isStarred !== undefined) updates.is_starred = card.isStarred;
-
-    const { data, error } = await supabase
-      .from('flashcards')
-      .update(updates)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error updating flashcard:', error);
-      return undefined;
-    }
-
-    return mapDbToFlashcard(data);
-  }
 
   async deleteFlashcard(id: string): Promise<boolean> {
     const { error } = await supabase.from('flashcards').delete().eq('id', id);
@@ -2237,16 +1526,6 @@ export class SupabaseStorage {
     return true;
   }
 
-  async deleteFlashcardsByDeckId(deckId: string): Promise<boolean> {
-    const { error } = await supabase.from('flashcards').delete().eq('deck_id', deckId);
-
-    if (error) {
-      console.error('Error deleting flashcards by deck:', error);
-      return false;
-    }
-
-    return true;
-  }
 
   /**
    * Save a full deck with all its cards in one go.
@@ -2275,108 +1554,8 @@ export class SupabaseStorage {
     return { deck: updatedDeck || deck, cards: savedCards };
   }
 
-  /**
-   * Update an existing deck: update metadata and replace all cards.
-   * Deletes existing cards, re-inserts from the provided array.
-   */
-  async updateFlashcardDeckWithCards(
-    deckId: string,
-    deckUpdates: Partial<InsertFlashcardDeck>,
-    cards: Omit<InsertFlashcard, 'deckId'>[],
-  ): Promise<{ deck: FlashcardDeck; cards: Flashcard[] }> {
-    // 1. Update deck metadata
-    await this.updateFlashcardDeck(deckId, deckUpdates);
 
-    // 2. Delete old cards
-    await this.deleteFlashcardsByDeckId(deckId);
 
-    // 3. Insert new cards
-    const cardInputs: InsertFlashcard[] = cards.map((c, i) => ({
-      ...c,
-      deckId,
-      position: c.position ?? i,
-    }));
-
-    const savedCards = await this.createFlashcardsBatch(cardInputs);
-
-    // 4. Re-fetch deck for latest state
-    const updatedDeck = await this.getFlashcardDeck(deckId);
-
-    return { deck: updatedDeck!, cards: savedCards };
-  }
-
-  // ========================================
-  // FLASHCARD STUDY PROGRESS METHODS
-  // ========================================
-
-  async getStudyProgress(
-    userId: string,
-    cardId: string,
-  ): Promise<FlashcardStudyProgress | undefined> {
-    const { data, error } = await supabase
-      .from('flashcard_study_progress')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('card_id', cardId)
-      .single();
-
-    if (error) return undefined;
-    return mapDbToStudyProgress(data);
-  }
-
-  async getStudyProgressByDeck(userId: string, deckId: string): Promise<FlashcardStudyProgress[]> {
-    // Join through flashcards table to get progress for all cards in a deck
-    const cards = await this.getFlashcardsByDeckId(deckId);
-    if (cards.length === 0) return [];
-
-    const cardIds = cards.map((c) => c.id);
-    const { data, error } = await supabase
-      .from('flashcard_study_progress')
-      .select('*')
-      .eq('user_id', userId)
-      .in('card_id', cardIds);
-
-    if (error) {
-      console.error('Error fetching study progress:', error);
-      return [];
-    }
-
-    return (data || []).map(mapDbToStudyProgress);
-  }
-
-  async upsertStudyProgress(
-    progress: InsertFlashcardStudyProgress,
-  ): Promise<FlashcardStudyProgress | undefined> {
-    const { data, error } = await supabase
-      .from('flashcard_study_progress')
-      .upsert(
-        {
-          user_id: progress.userId,
-          card_id: progress.cardId,
-          ease_factor: progress.easeFactor ?? 2.5,
-          interval_days: progress.intervalDays ?? 0,
-          repetitions: progress.repetitions ?? 0,
-          next_review: progress.nextReview || null,
-          last_reviewed: progress.lastReviewed || null,
-          quality: progress.quality ?? 0,
-        },
-        { onConflict: 'user_id,card_id' },
-      )
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error upserting study progress:', error);
-      return undefined;
-    }
-
-    return mapDbToStudyProgress(data);
-  }
-
-  // Aliases
-  getFlashcardDecksForUser(userId: string) {
-    return this.getFlashcardDecksByUserId(userId);
-  }
 }
 
 // Export singleton instance

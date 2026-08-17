@@ -50,7 +50,6 @@ export default function PrivacyPolicy() {
                   <li>Assignment data and deadlines</li>
                   <li>Study notes and flashcards</li>
                   <li>Calendar events and schedules</li>
-                  <li>Productivity analytics and usage patterns</li>
                 </ul>
 
                 <h3 className="text-lg font-medium text-foreground">1.3 Third-Party Integration Data</h3>
@@ -71,7 +70,6 @@ export default function PrivacyPolicy() {
                   <li>Provide and maintain our educational productivity services</li>
                   <li>Sync your data across integrated platforms</li>
                   <li>Send notifications about assignments and deadlines</li>
-                  <li>Generate analytics about your study habits</li>
                   <li>Improve our AI-powered features</li>
                   <li>Provide customer support</li>
                 </ul>
@@ -133,9 +131,8 @@ export default function PrivacyPolicy() {
                 <p>We retain your data as follows:</p>
                 <ul className="list-disc ml-6 space-y-1">
                   <li><strong>Account Data:</strong> Until you delete your account</li>
-                  <li><strong>Study Data:</strong> Retained for functionality and analytics</li>
+                  <li><strong>Study Data:</strong> Retained for functionality</li>
                   <li><strong>Cached Data:</strong> Automatically refreshed periodically</li>
-                  <li><strong>Analytics:</strong> Aggregated data may be retained longer</li>
                 </ul>
               </div>
             </section>

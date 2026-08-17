@@ -66,7 +66,7 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!user?.uid) return;
     
     try {
-      const data = await supabaseStorage.getBoardsForUser(user.uid);
+      const data = await supabaseStorage.getBoardsByUserId(user.uid);
       setBoards(data);
       
       // Set first board as active if none selected
@@ -87,7 +87,7 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Fetch lists for active board
   const fetchLists = useCallback(async (boardId: string) => {
     try {
-      const data = await supabaseStorage.getListsForBoard(boardId);
+      const data = await supabaseStorage.getListsByBoardId(boardId);
       setLists(data);
     } catch (err) {
       console.error('Failed to fetch lists:', err);
@@ -97,7 +97,7 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // Fetch cards for active board
   const fetchCards = useCallback(async (boardId: string) => {
     try {
-      const data = await supabaseStorage.getCardsForBoard(boardId);
+      const data = await supabaseStorage.getCardsByBoardId(boardId);
       setCards(data);
     } catch (err) {
       console.error('Failed to fetch cards:', err);
@@ -121,7 +121,7 @@ export const BoardProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!user?.uid) return;
     
     try {
-      const data = await supabaseStorage.getLabelsForUser(user.uid);
+      const data = await supabaseStorage.getLabelsByUserId(user.uid);
       setLabels(data);
     } catch (err) {
       console.error('Failed to fetch labels:', err);

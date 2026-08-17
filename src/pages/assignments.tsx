@@ -36,13 +36,13 @@ export default function Assignments() {
           variant="outline"
           size="sm"
           onClick={a.handleSync}
-          disabled={a.isSyncing || a.isRestoring}
+          disabled={a.isSyncing}
           className="text-sm"
         >
           <RefreshCw
-            className={`h-3 w-3 mr-1 ${a.isSyncing || a.isRestoring ? 'animate-spin' : ''}`}
+            className={`h-3 w-3 mr-1 ${a.isSyncing ? 'animate-spin' : ''}`}
           />
-          {a.isSyncing || a.isRestoring ? 'Refreshing...' : 'Refresh'}
+          {a.isSyncing ? 'Refreshing...' : 'Refresh'}
         </Button>
 
         <AddAssignmentDialog
@@ -76,17 +76,16 @@ export default function Assignments() {
       />
 
       {/* Loading state */}
-      {(a.isLoading || a.isRestoring) && !a.assignments.length ? (
+      {a.isLoading && !a.assignments.length ? (
         <AssignmentSkeleton />
       ) : null}
 
       {/* Empty states */}
-      {!a.isLoading && !a.isRestoring && a.assignments.length === 0 ? (
+      {!a.isLoading && a.assignments.length === 0 ? (
         <NoAssignments onAdd={() => a.setShowAddDialog(true)} />
       ) : null}
 
       {!a.isLoading &&
-      !a.isRestoring &&
       a.filteredAssignments.length === 0 &&
       a.assignments.length > 0 ? (
         <EmptyState

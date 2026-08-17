@@ -8,7 +8,6 @@ Disallow: /classes
 Disallow: /files
 Disallow: /learn
 Disallow: /ai-chat
-Disallow: /analytics
 Disallow: /habits
 Disallow: /todo-list
 Disallow: /settings

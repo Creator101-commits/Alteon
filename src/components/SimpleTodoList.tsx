@@ -38,7 +38,7 @@ export function SimpleTodoList() {
 
     const fetchTodos = async () => {
       try {
-        const data = await supabaseStorage.getQuickTasks(user.uid);
+        const data = await supabaseStorage.getQuickTasksByUserId(user.uid);
         setTodos(data);
       } catch (error) {
         console.error('Error fetching quick tasks:', error);

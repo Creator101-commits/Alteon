@@ -6,11 +6,9 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { storage } from "@/lib/supabase-storage";
 import { groqAPI, ChatMessage as GroqChatMessage } from "@/lib/groq";
 import { useToast } from "@/hooks/use-toast";
-import { useActivity } from "@/contexts/ActivityContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/AppStateContext";
 import { getYouTubeTranscriptSafe } from "@/lib/youtubeTranscript";
-import { Bot } from "lucide-react";
 import { SYSTEM_PROMPT_SUFFIX } from "./constants";
 import type {
   ChatMessage,
@@ -39,8 +37,8 @@ export function useAiChat() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const documentPollersRef = useRef(new Map<string, number>());
   const { toast } = useToast();
-  const { addActivity } = useActivity();
   const { user } = useAuth();
   const { preferences } = usePreferences();
   const isDockNav = preferences.navigationStyle === 'dock' || !preferences.navigationStyle;
@@ -48,6 +46,15 @@ export function useAiChat() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    return () => {
+      for (const interval of documentPollersRef.current.values()) {
+        window.clearInterval(interval);
+      }
+      documentPollersRef.current.clear();
+    };
+  }, []);
 
   useEffect(() => {
     loadNotes();
@@ -298,15 +305,6 @@ export function useAiChat() {
       setSummaries((prev) => [summary, ...prev]);
       await saveSummaryToDatabase(summary);
 
-      addActivity({
-        label: `AI summarized text content`,
-        icon: Bot,
-        tone: "text-indigo-400",
-        type: "ai",
-        relatedId: summary.id,
-        route: "/ai-chat",
-      });
-
       setInputText("");
       toast({ title: "Success", description: "Text summarized successfully!" });
     } catch (error) {
@@ -366,15 +364,6 @@ export function useAiChat() {
       };
       setSummaries((prev) => [summary, ...prev]);
       await saveSummaryToDatabase(summary);
-
-      addActivity({
-        label: `AI summarized note: ${selectedNote.title}`,
-        icon: Bot,
-        tone: "text-indigo-400",
-        type: "ai",
-        relatedId: summary.id,
-        route: "/ai-chat",
-      });
 
       setSelectedNote(null);
       setShowNoteSelector(false);
@@ -451,15 +440,6 @@ export function useAiChat() {
       };
       setSummaries((prev) => [summary, ...prev]);
       await saveSummaryToDatabase(summary);
-
-      addActivity({
-        label: `AI summarized YouTube video`,
-        icon: Bot,
-        tone: "text-indigo-400",
-        type: "ai",
-        relatedId: summary.id,
-        route: "/ai-chat",
-      });
 
       setYoutubeUrl("");
       toast({
@@ -573,8 +553,23 @@ export function useAiChat() {
     if (documentInputRef.current) documentInputRef.current.value = "";
   };
 
-  const pollDocumentStatus = async (jobId: string) => {
-    const pollInterval = setInterval(async () => {
+  const pollDocumentStatus = (jobId: string) => {
+    const existing = documentPollersRef.current.get(jobId);
+    if (existing !== undefined) {
+      window.clearInterval(existing);
+    }
+
+    let attempts = 0;
+    const stopPolling = () => {
+      const interval = documentPollersRef.current.get(jobId);
+      if (interval !== undefined) {
+        window.clearInterval(interval);
+        documentPollersRef.current.delete(jobId);
+      }
+    };
+
+    const interval = window.setInterval(async () => {
+      attempts += 1;
       try {
         const response = await fetch(
           `/api/document-intel/sessions?sessionId=${jobId}&action=content`,
@@ -583,7 +578,7 @@ export function useAiChat() {
 
         if (response.ok) {
           const data = await response.json();
-          clearInterval(pollInterval);
+          stopPolling();
           setUploadedDocuments((prev) =>
             prev.map((doc) =>
               doc.jobId === jobId
@@ -596,27 +591,37 @@ export function useAiChat() {
                 : doc
             )
           );
-        } else if (response.status !== 404) {
-          console.error("Error fetching document:", response.statusText);
-          clearInterval(pollInterval);
+        } else if (response.status !== 404 || attempts >= 30) {
+          stopPolling();
           setUploadedDocuments((prev) =>
             prev.map((doc) =>
-              doc.jobId === jobId
-                ? { ...doc, status: "error" as const }
-                : doc
+              doc.jobId === jobId ? { ...doc, status: "error" as const } : doc
             )
           );
         }
       } catch (error) {
+        if (attempts >= 30) {
+          stopPolling();
+          setUploadedDocuments((prev) =>
+            prev.map((doc) =>
+              doc.jobId === jobId ? { ...doc, status: "error" as const } : doc
+            )
+          );
+        }
         console.error("Error polling document status:", error);
       }
     }, 2000);
+
+    documentPollersRef.current.set(jobId, interval);
   };
 
   const removeDocument = (jobId: string) => {
-    setUploadedDocuments((prev) =>
-      prev.filter((doc) => doc.jobId !== jobId)
-    );
+    const interval = documentPollersRef.current.get(jobId);
+    if (interval !== undefined) {
+      window.clearInterval(interval);
+      documentPollersRef.current.delete(jobId);
+    }
+    setUploadedDocuments((prev) => prev.filter((doc) => doc.jobId !== jobId));
   };
 
   const handleFileUpload = async (

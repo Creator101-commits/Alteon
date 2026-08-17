@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { storage } from '@/lib/supabase-storage';
 import type { Folder, Note, FlashcardDeck } from '@shared/schema';
@@ -25,11 +25,9 @@ import {
   Folder as FolderIcon,
   FolderOpen,
   FileText,
-  Brain,
   Layers,
   Plus,
   MoreHorizontal,
-  Edit3,
   Trash2,
   ChevronRight,
   ChevronDown,
@@ -53,18 +51,26 @@ export type FileItem = {
 };
 
 interface FileTreeProps {
+  folders: Folder[];
+  notes: Note[];
+  flashcardDecks: FlashcardDeck[];
+  isLoading: boolean;
+  onRefresh: () => Promise<void>;
   onSelectItem: (item: FileItem) => void;
   selectedItemId?: string;
 }
 
-export const FileTree: React.FC<FileTreeProps> = ({ onSelectItem, selectedItemId }) => {
+export const FileTree: React.FC<FileTreeProps> = ({
+  folders,
+  notes,
+  flashcardDecks,
+  isLoading,
+  onRefresh,
+  onSelectItem,
+  selectedItemId,
+}) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  
-  const [folders, setFolders] = useState<Folder[]>([]);
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [flashcardDecks, setFlashcardDecks] = useState<FlashcardDeck[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   
   // Dialog states
@@ -78,42 +84,8 @@ export const FileTree: React.FC<FileTreeProps> = ({ onSelectItem, selectedItemId
   const [rootDropActive, setRootDropActive] = useState(false);
 
   useEffect(() => {
-    if (user?.uid) {
-      loadAllData();
-    }
-  }, [user?.uid]);
-
-  const loadAllData = async () => {
-    if (!user?.uid) return;
-    
-    setIsLoading(true);
-    try {
-      const [foldersData, notesData, decksData] = await Promise.all([
-        storage.getFoldersByUserId(user.uid),
-        storage.getNotesByUserId(user.uid),
-        storage.getFlashcardDecksByUserId(user.uid),
-      ]);
-      
-      setFolders(foldersData);
-      setNotes(notesData);
-      setFlashcardDecks(decksData);
-      
-      // Auto-expand folders that were previously expanded (stored in folder data)
-      const expanded = new Set<string>(
-        foldersData.filter((f: Folder) => f.isExpanded).map((f: Folder) => f.id)
-      );
-      setExpandedFolders(expanded);
-    } catch (error) {
-      console.error('Error loading file tree data:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to load files and folders',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    setExpandedFolders(new Set(folders.filter((folder) => folder.isExpanded).map((folder) => folder.id)));
+  }, [folders]);
 
   const toggleFolder = async (folderId: string) => {
     const newExpanded = new Set(expandedFolders);
@@ -132,13 +104,13 @@ export const FileTree: React.FC<FileTreeProps> = ({ onSelectItem, selectedItemId
     if (!user?.uid || !newFolderName.trim()) return;
     
     try {
-      const folder = await storage.createFolder({
+      await storage.createFolder({
         userId: user.uid,
         name: newFolderName.trim(),
         parentFolderId: parentFolderId,
       });
       
-      setFolders(prev => [...prev, folder]);
+      await onRefresh();
       setNewFolderName('');
       setParentFolderId(null);
       setIsCreateFolderOpen(false);
@@ -165,7 +137,7 @@ export const FileTree: React.FC<FileTreeProps> = ({ onSelectItem, selectedItemId
     try {
       const success = await storage.deleteFolder(folderId);
       if (success) {
-        setFolders(prev => prev.filter(f => f.id !== folderId));
+        await onRefresh();
         toast({
           title: 'Success',
           description: 'Folder deleted successfully',
@@ -281,22 +253,22 @@ export const FileTree: React.FC<FileTreeProps> = ({ onSelectItem, selectedItemId
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
-    setDropTargetId(folderId);
-    setRootDropActive(false);
+    setDropTargetId((current) => current === folderId ? current : folderId);
+    setRootDropActive((current) => current ? false : current);
   };
 
   const handleFolderDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setDropTargetId(null);
+    setDropTargetId((current) => current === null ? current : null);
   };
 
   const handleRootDragOver = (e: React.DragEvent) => {
     if (!draggedItem) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    setRootDropActive(true);
-    setDropTargetId(null);
+    setRootDropActive((current) => current ? current : true);
+    setDropTargetId((current) => current === null ? current : null);
   };
 
   const handleRootDragLeave = (e: React.DragEvent) => {
@@ -319,7 +291,7 @@ export const FileTree: React.FC<FileTreeProps> = ({ onSelectItem, selectedItemId
         title: 'Success',
         description: folderId ? 'Moved to folder' : 'Moved to root',
       });
-      await loadAllData();
+      await onRefresh();
     } catch (error) {
       console.error('Error moving item:', error);
       toast({
@@ -460,7 +432,7 @@ export const FileTree: React.FC<FileTreeProps> = ({ onSelectItem, selectedItemId
     );
   };
 
-  const fileTree = buildFileTree();
+  const fileTree = useMemo(() => buildFileTree(), [folders, notes, flashcardDecks]);
 
   if (isLoading) {
     return (

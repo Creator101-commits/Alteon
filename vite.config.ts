@@ -1,23 +1,10 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
-import viteCompression from "vite-plugin-compression";
 
 export default defineConfig({
   plugins: [
     react(),
-    // Brotli compression for smaller network transfers (70-80% reduction)
-    viteCompression({
-      algorithm: 'brotliCompress',
-      ext: '.br',
-      threshold: 1024, // Only compress files > 1KB
-    }),
-    // Gzip fallback for browsers without Brotli support
-    viteCompression({
-      algorithm: 'gzip',
-      ext: '.gz',
-      threshold: 1024,
-    }),
   ],
   resolve: {
     alias: {
@@ -53,28 +40,10 @@ export default defineConfig({
           'vendor-router': ['wouter'],
           // React Query - data fetching
           'vendor-query': ['@tanstack/react-query'],
-          // UI components - loaded with main app
-          'vendor-ui': [
-            '@radix-ui/react-dialog', 
-            '@radix-ui/react-dropdown-menu', 
-            '@radix-ui/react-toast',
-            '@radix-ui/react-popover',
-            '@radix-ui/react-select',
-            '@radix-ui/react-tabs',
-            '@radix-ui/react-tooltip',
-          ],
-          // Charts - only loaded on analytics/dashboard pages
-          'vendor-charts': ['recharts'],
-          // Editor - only loaded on notes pages
-          'vendor-editor': ['@tiptap/react', '@tiptap/starter-kit', '@tiptap/extension-placeholder'],
-          // DnD Kit - only loaded on todos/boards pages
-          'vendor-dnd': ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
           // Utilities
           'vendor-utils': ['date-fns', 'clsx', 'tailwind-merge', 'zod'],
           // Firebase - auth and related
           'vendor-firebase': ['firebase/app', 'firebase/auth'],
-          // Heavy visualization libraries - lazy loaded
-          'vendor-mermaid': ['mermaid'],
           // Supabase client
           'vendor-supabase': ['@supabase/supabase-js'],
           // Animation
@@ -110,10 +79,8 @@ export default defineConfig({
       'wouter',
       'clsx',
       'date-fns',
-      // Fix dayjs ESM compatibility (used by mermaid)
-      'dayjs',
     ],
-    // Note: mermaid is heavy but needs to be bundled for dayjs compatibility
+    esbuildOptions: { target: 'esnext' },
   },
   // Enable caching for faster rebuilds
   cacheDir: 'node_modules/.vite',

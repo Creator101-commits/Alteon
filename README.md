@@ -22,7 +22,7 @@ Architecture used:
 Key features:
 - AI-assisted notes with diff-style accept/reject edits
 - Unified calendar + assignment tracking and sync
-- Study tools (flashcards, Pomodoro, analytics)
+- Study tools (flashcards, Pomodoro, mood tracking)
 - Dashboard workflows for daily planning and progress
 
 ## Installation
@@ -83,7 +83,7 @@ vercel dev
 3. Create classes and assignments with due dates.
 4. Draft notes with the rich editor and AI assistant.
 5. Use dashboard + calendar to plan sessions.
-6. Track progress with analytics and productivity tools.
+6. Track progress with productivity tools.
 
 ### AI note workflow
 1. Open a note and write your draft.
@@ -102,6 +102,8 @@ npm run dev      # Start Vite dev server (default port 5173)
 npm run build    # Production build
 npm run start    # Start production server
 npm run check    # Type checking
+npm test         # Unit, application smoke, and performance tests
+npm run check:build # Verify production bundle performance budgets after building
 npm run db:push  # Push database schema changes
 ```
 
@@ -112,7 +114,6 @@ Alteon/
 ├── api/                   # Vercel serverless API routes (/api/*)
 ├── lib/                   # Shared libraries (HAC scraping, utilities)
 ├── shared/                # Shared schema definitions
-├── supabase/migrations/   # Drizzle SQL migrations
 ├── docs/                  # Documentation
 ├── scripts/               # Tooling scripts
 └── images/, sounds/, etc. # Static assets
@@ -122,13 +123,13 @@ Alteon/
 1. Create a Supabase project.
 2. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.
 3. Set DATABASE_URL from Supabase Database Settings.
-4. Run npm run db:push or apply SQL in supabase/migrations/.
+4. Run `npm run db:push`.
 
 ## System architecture
 
 ### Core stack
 - Frontend: React 18, TypeScript, Vite, Tailwind CSS, Wouter
-- UI/UX: Radix UI, Framer Motion, Tiptap, Recharts
+- UI/UX: Radix UI, Framer Motion, Tiptap
 - Backend: Vercel serverless API routes under /api/*
 - Data: Supabase PostgreSQL + Supabase Storage
 - Auth: Firebase Authentication (Google SSO)
@@ -167,7 +168,6 @@ Alteon/
 - Flashcards with spaced repetition
 - Pomodoro timer with session tracking
 - Mood tracking and journaling
-- Analytics dashboard for patterns and progress
 
 ### AI assistance
 - Multi-purpose study chat

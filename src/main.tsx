@@ -13,9 +13,6 @@ const reportWebVitals = async () => {
     const logVital = (metric: { name: string; value: number; rating: string }) => {
       // Log to console in a compact format
       console.log(`[Vitals] ${metric.name}: ${Math.round(metric.value)}ms (${metric.rating})`);
-      
-      // You can send to analytics here:
-      // analytics.track('web_vital', metric);
     };
     
     onCLS(logVital);

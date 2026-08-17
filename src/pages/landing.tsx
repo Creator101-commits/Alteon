@@ -1,3 +1,4 @@
+import logo from "../../images/alteon-logo.png";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
 import { useEffect, useState } from "react";
@@ -35,7 +36,7 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <img src="../images/alteon-logo.png" alt="Alteon Logo" className="h-8 w-8 object-contain" />
+              <img src={logo} alt="Alteon Logo" className="h-8 w-8 object-contain" />
               <span className="text-2xl font-medium tracking-wide">Alteon</span>
             </div>
             <div className="hidden md:flex items-center space-x-8">
@@ -98,7 +99,6 @@ export default function Landing() {
               { label: "AI Summaries" },
               { label: "Smart Calendar" },
               { label: "Task Manager" },
-              { label: "Analytics" },
               { label: "Flashcards" },
               { label: "Pomodoro Timer" },
               { label: "Mood Tracker" },
@@ -114,28 +114,6 @@ export default function Landing() {
               </div>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* Social Proof */}
-      <section className="py-24 px-6">
-        <div className="max-w-3xl mx-auto text-center">
-          <div className="p-8">
-            <p className="text-xl md:text-2xl text-foreground mb-6 font-normal leading-relaxed">
-              "Alteon transformed how I manage my coursework. My productivity increased by 300%."
-            </p>
-            <div className="space-y-1">
-              <p className="text-lg font-medium">Sarah Chen</p>
-              <p className="text-base text-muted-foreground">Computer Science, Stanford</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Used By Section */}
-      <section className="py-16 px-6">
-        <div className="max-w-3xl mx-auto text-center">
-          <p className="text-base text-muted-foreground">Used by 10,000+ students worldwide</p>
         </div>
       </section>
 

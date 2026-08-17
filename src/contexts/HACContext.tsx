@@ -256,11 +256,9 @@ export const HACProvider = ({ children }: HACProviderProps) => {
         setCachedUsername(credentials.username);
         credentialsRef.current = credentials;
         
-        // Fetch grades (blocking), then background tasks
-        await fetchGradesInternal(data.sessionId);
-        
-        // Fire-and-forget: report card + prefetch
-        startBackgroundTasks(data.sessionId);
+        // Fetch grades once, then use that response for background work.
+        const initialGrades = await fetchGradesInternal(data.sessionId);
+        startBackgroundTasks(data.sessionId, initialGrades);
       } else {
         if (user?.uid) {
           localStorage.removeItem(getStorageKey(user.uid, 'credentials'));
@@ -314,11 +312,9 @@ export const HACProvider = ({ children }: HACProviderProps) => {
         );
       });
       
-      // Fetch grades (blocking)
-      await fetchGradesInternal(data.sessionId);
-      
-      // Background: report card + prefetch
-      startBackgroundTasks(data.sessionId);
+      // Fetch grades once, then use that response for background work.
+      const initialGrades = await fetchGradesInternal(data.sessionId);
+      startBackgroundTasks(data.sessionId, initialGrades);
       
       return true;
     } catch (err) {
@@ -408,13 +404,13 @@ export const HACProvider = ({ children }: HACProviderProps) => {
    * 1. Fetch report card
    * 2. Prefetch other cycles for instant switching
    */
-  const startBackgroundTasks = (sid: string) => {
+  const startBackgroundTasks = (sid: string, initialGrades: HACGradesData | null) => {
     // Report card (fire-and-forget)
     fetchReportCardInternal(sid).catch(() => {});
-    
-    // Start prefetching other cycles after a short delay
+
+    // Start prefetching other cycles after a short delay.
     setTimeout(() => {
-      startPrefetching(sid);
+      startPrefetching(sid, initialGrades);
     }, 500);
   };
 
@@ -422,17 +418,14 @@ export const HACProvider = ({ children }: HACProviderProps) => {
    * Prefetch all available cycles in batches.
    * Fetches PREFETCH_BATCH_SIZE cycles in parallel, then waits before the next batch.
    */
-  const startPrefetching = async (sid: string) => {
+  const startPrefetching = async (sid: string, initialGrades: HACGradesData | null) => {
     if (prefetchingRef.current) return; // Already prefetching
     prefetchingRef.current = true;
     setIsPrefetching(true);
     
     try {
-      // Wait for availableCycles to be populated
-      // We read from the latest state via a small trick
-      const currentGrades = await fetchGradesInternal(sid);
-      const cycles = currentGrades?.availableCycles || [];
-      const currentCycle = currentGrades?.currentCycle;
+      const cycles = initialGrades?.availableCycles || [];
+      const currentCycle = initialGrades?.currentCycle;
       
       if (cycles.length <= 1) {
         console.log('[HACContext] Only 1 cycle available, skipping prefetch');
@@ -496,10 +489,10 @@ export const HACProvider = ({ children }: HACProviderProps) => {
     try {
       // Clear cache and re-fetch
       setCycleGradesCache(new Map());
-      await fetchGradesInternal(sessionId);
+      const refreshedGrades = await fetchGradesInternal(sessionId);
       
-      // Re-prefetch in background
-      startBackgroundTasks(sessionId);
+      // Re-prefetch in background using the refreshed response.
+      startBackgroundTasks(sessionId, refreshedGrades);
     } finally {
       setIsLoading(false);
     }

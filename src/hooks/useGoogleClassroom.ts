@@ -36,23 +36,18 @@ export const useGoogleClassroom = () => {
     setData(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
-      let databaseClasses: any[] = [];
-      let databaseAssignments: any[] = [];
+      const [classesResult, assignmentsResult] = await Promise.allSettled([
+        storage.getClassesByUserId(user.uid),
+        storage.getAssignmentsByUserId(user.uid),
+      ]);
+      const databaseClasses = classesResult.status === 'fulfilled' ? classesResult.value : [];
+      const databaseAssignments = assignmentsResult.status === 'fulfilled' ? assignmentsResult.value : [];
 
-      // Fetch classes from database using storage
-      try {
-        databaseClasses = await storage.getClassesForUser(user.uid);
-        console.log('Fetched database classes:', databaseClasses.length);
-      } catch (dbError) {
-        console.warn('Failed to fetch classes:', dbError);
+      if (classesResult.status === 'rejected') {
+        console.warn('Failed to fetch classes:', classesResult.reason);
       }
-
-      // Fetch assignments from database using storage
-      try {
-        databaseAssignments = await storage.getAssignmentsForUser(user.uid);
-        console.log('Fetched database assignments:', databaseAssignments.length);
-      } catch (dbError) {
-        console.warn('Failed to fetch assignments:', dbError);
+      if (assignmentsResult.status === 'rejected') {
+        console.warn('Failed to fetch assignments:', assignmentsResult.reason);
       }
 
       console.log('Data fetch results:', {

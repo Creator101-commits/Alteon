@@ -7,7 +7,7 @@ describe('cn utility', () => {
   });
 
   it('handles conditional classes', () => {
-    expect(cn('base', false && 'hidden', 'extra')).toBe('base extra');
+    expect(cn('base', undefined, 'extra')).toBe('base extra');
   });
 
   it('resolves Tailwind conflicts (last wins)', () => {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { lazy, Suspense, useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -11,7 +11,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { DocumentUploadDialog } from './DocumentUploadDialog';
-import { FlashcardCreator } from '@/components/tools/FlashcardCreator';
 import { useAuth } from '@/contexts/AuthContext';
 import { storage } from '@/lib/supabase-storage';
 import { useToast } from '@/hooks/use-toast';
@@ -24,6 +23,8 @@ import {
   Download,
   X,
 } from 'lucide-react';
+
+const LazyFlashcardCreator = lazy(() => import('@/components/tools/FlashcardCreator'));
 
 type Category = 'flashcards' | 'notes' | 'folder';
 
@@ -113,7 +114,8 @@ export function CreateDialog({
   if (showFlashcardCreator) {
     return (
       <div className="fixed inset-0 z-50 bg-background">
-        <FlashcardCreator 
+        <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">Loading flashcard editor...</div>}>
+          <LazyFlashcardCreator
           onClose={() => {
             setShowFlashcardCreator(false);
             onOpenChange(false);
@@ -159,7 +161,8 @@ export function CreateDialog({
               // Do NOT close — let the user retry
             }
           }}
-        />
+          />
+        </Suspense>
       </div>
     );
   }

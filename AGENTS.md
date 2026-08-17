@@ -1,136 +1,162 @@
-# gstack — AI Engineering Workflow
+# Project Context
 
-gstack is a collection of SKILL.md files that give AI agents structured roles for
-software development. Each skill is a specialist: CEO reviewer, eng manager,
-designer, QA lead, release engineer, debugger, and more.
+- Owner: Creator101-commits
+- Default branch: main
+- GitHub: https://github.com/Creator101-commits/alteon
 
-## Available skills
+---
 
-Skills live in `.agents/skills/` (or `~/.claude/skills/gstack/` on Claude Code).
-Invoke them by name (e.g., `/office-hours`).
+# Alteon
 
-### Plan-mode reviews
-
-| Skill | What it does |
-|-------|-------------|
-| `/office-hours` | Start here. Reframes your product idea before you write code. |
-| `/plan-ceo-review` | CEO-level review: find the 10-star product in the request. |
-| `/plan-eng-review` | Lock architecture, data flow, edge cases, and tests. |
-| `/plan-design-review` | Rate each design dimension 0-10, explain what a 10 looks like. |
-| `/plan-devex-review` | DX-mode review: TTHW, magical moments, friction points, persona traces. |
-| `/plan-tune` | Self-tune AskUserQuestion sensitivity per question. |
-| `/autoplan` | One command runs CEO → design → eng → DX review. |
-| `/design-consultation` | Build a complete design system from scratch. |
-| `/spec` | Turn vague intent into a precise, executable spec in five phases. Files a GitHub issue, optionally spawns a Claude Code agent in a fresh worktree, and lets `/ship` close the source issue on merge. |
-
-### Implementation + review
-
-| Skill | What it does |
-|-------|-------------|
-| `/review` | Pre-landing PR review. Finds bugs that pass CI but break in prod. |
-| `/codex` | Second opinion via OpenAI Codex. Review, challenge, or consult modes. |
-| `/investigate` | Systematic root-cause debugging. No fixes without investigation. |
-| `/design-review` | Live-site visual audit + fix loop with atomic commits. |
-| `/design-shotgun` | Generate multiple AI design variants, comparison board, iterate. |
-| `/design-html` | Generate production-quality Pretext-native HTML/CSS. |
-| `/devex-review` | Live developer experience audit (TTHW measured against the real flow). |
-| `/qa` | Open a real browser, find bugs, fix them, re-verify. |
-| `/qa-only` | Same methodology as /qa but report only — no code changes. |
-| `/scrape` | Pull data from a web page. First call prototypes; codified call runs in ~200ms. |
-| `/skillify` | Codify the most recent successful `/scrape` flow into a permanent browser-skill. |
-
-### Release + deploy
-
-| Skill | What it does |
-|-------|-------------|
-| `/ship` | Run tests, review, push, open PR. Workspace-aware version queue. |
-| `/land-and-deploy` | Merge the PR, wait for CI and deploy, verify production health. |
-| `/canary` | Post-deploy monitoring loop using the browse daemon. |
-| `/landing-report` | Read-only dashboard for the workspace-aware ship queue. |
-| `/document-release` | Update all docs to match what you just shipped. |
-| `/document-generate` | Generate Diataxis docs (tutorial / how-to / reference / explanation) from code. |
-| `/setup-deploy` | One-time deploy config detection (Fly.io, Render, Vercel, etc.). |
-| `/gstack-upgrade` | Update gstack to the latest version. |
-
-### Operational + memory
-
-| Skill | What it does |
-|-------|-------------|
-| `/context-save` | Save working context (git state, decisions, remaining work). |
-| `/context-restore` | Resume from a saved context, even across Conductor workspaces. |
-| `/learn` | Manage what gstack learned across sessions. |
-| `/retro` | Weekly retro with per-person breakdowns and shipping streaks. |
-| `/health` | Code quality dashboard (type checker, linter, tests, dead code). |
-| `/benchmark` | Performance regression detection (page load, Core Web Vitals). |
-| `/benchmark-models` | Cross-model benchmark for skills (Claude, GPT, Gemini side-by-side). |
-| `/cso` | OWASP Top 10 + STRIDE security audit. |
-| `/setup-gbrain` | Set up gbrain for cross-machine session memory sync. |
-| `/sync-gbrain` | Keep gbrain current with this repo's code; refresh agent search guidance in CLAUDE.md. |
-
-### Browser + agent integration
-
-| Skill | What it does |
-|-------|-------------|
-| `/browse` | Headless browser — real Chromium, real clicks, ~100ms/command. |
-| `/open-gstack-browser` | Launch the visible GStack Browser with sidebar + stealth. |
-| `/setup-browser-cookies` | Import cookies from your real browser for authenticated testing. |
-| `/pair-agent` | Pair a remote AI agent (OpenClaw, Codex, etc.) with your browser. |
-
-### iOS QA — drive real iPhones over USB or Tailscale (v1.43.0.0+)
-
-| Skill | What it does |
-|-------|-------------|
-| `/ios-qa` | Live-device iOS QA via USB CoreDevice tunnel + embedded StateServer. Optionally exposes the device over Tailscale so remote agents can drive it. |
-| `/ios-fix` | Autonomous iOS bug fixer with regression snapshot capture. |
-| `/ios-design-review` | Designer's-eye QA on a real iPhone — 10-dimension Apple HIG rubric. |
-| `/ios-clean` | Convenience: strip DebugBridge + #if DEBUG wiring before a Release build. |
-| `/ios-sync` | Regenerate the iOS debug bridge against the latest upstream templates. |
-
-Companion CLIs (run on the Mac that's plugged into the device):
-
-| Command | What it does |
-|---------|-------------|
-| `gstack-ios-qa-daemon` | Mac-side broker. Loopback by default; `--tailnet` adds a Tailscale-facing listener with capability tiers and audit logging. |
-| `gstack-ios-qa-mint` | Owner-grant CLI for the tailnet allowlist (`grant`/`revoke`/`list`). |
-
-End-to-end walkthrough: [docs/howto-ios-testing-with-gstack.md](docs/howto-ios-testing-with-gstack.md).
-
-### Safety + scoping
-
-| Skill | What it does |
-|-------|-------------|
-| `/careful` | Warn before destructive commands (rm -rf, DROP TABLE, force-push). |
-| `/freeze` | Lock edits to one directory. Hard block, not just a warning. |
-| `/guard` | Activate both careful + freeze at once. |
-| `/unfreeze` | Remove directory edit restrictions. |
-| `/make-pdf` | Turn any markdown file into a publication-quality PDF. |
-| `/diagram` | English in, diagram out: mermaid source + editable .excalidraw + SVG/PNG, offline. |
+Alteon is a React and TypeScript student productivity workspace for notes, assignments, scheduling, study tools, and AI-assisted workflows. It uses Vite for the frontend, Vercel serverless routes for the backend, and Supabase, Firebase, Groq, and Google APIs for data and integrations.
 
 ## Build commands
 
 ```bash
-bun install              # install dependencies
-bun test                 # run free tests (no API spend)
-bun run test:windows     # curated Windows-safe subset (runs on windows-latest)
-bun run build            # generate docs + compile binaries
-bun run gen:skill-docs   # regenerate SKILL.md files from templates
-bun run skill:check      # health dashboard for all skills
+npm install                 # Install dependencies
+npm run check               # TypeScript validation
+npm test                    # Run the no-cost test suite
+npm run build               # Create the production Vite build
+npm run lint                # Run ESLint
+npm run format              # Format source files with Prettier
+npm audit --omit=dev        # Audit production dependencies
 ```
 
 ## Platform support
 
-- **macOS** + **Linux**: full test suite supported.
-- **Windows**: curated Windows-safe subset runs on `windows-latest` via the
-  `windows-free-tests` CI job. Setup script (`./setup`) requires Git Bash or
-  MSYS today; native PowerShell support is a future expansion. The `bin/gstack-paths`
-  helper resolves state roots through `CLAUDE_PLUGIN_DATA` / `GSTACK_HOME` so plugin
-  installs work on every platform.
+- Node.js 18+ with npm 8+; production deployment targets Vercel.
+- The browser app is served by Vite. API routes under `api/` use the Vercel serverless runtime and require the configured environment variables.
 
 ## Key conventions
 
-- SKILL.md files are **generated** from `.tmpl` templates. Edit the template, not the output.
-- Run `bun run gen:skill-docs --host codex` to regenerate Codex-specific output.
-- The browse binary provides headless browser access. Use `$B <command>` in skills.
-- Safety skills (careful, freeze, guard) use inline advisory prose — always confirm before destructive operations.
-- State paths resolve via `bin/gstack-paths` (sourced via `eval "$(...)")`). Honors `GSTACK_HOME`, `CLAUDE_PLUGIN_DATA`, `CLAUDE_PLANS_DIR`.
-- The `claude` CLI binary resolves via `browse/src/claude-bin.ts` (`Bun.which()` + `GSTACK_CLAUDE_BIN` override). Set `GSTACK_CLAUDE_BIN=wsl` plus `GSTACK_CLAUDE_BIN_ARGS='["claude"]'` to run Claude through WSL on Windows.
+- Keep frontend code in `src/`, Vercel API routes in `api/`, shared Drizzle schema in `shared/schema.ts`, and generated build output in `dist/`. Do not edit `dist/` by hand.
+- Use npm and keep `package-lock.json` synchronized with `package.json`; do not introduce another package manager.
+- Keep `.env` local and ignored. Only variables prefixed with `VITE_` are safe for browser exposure; server-only credentials such as `DATABASE_URL`, `GROQ_API_KEY`, and Google client secrets must not use the `VITE_` prefix.
+- Treat the Supabase database as shared state. Review schema and RLS changes before applying them; `drizzle.config.ts` intentionally excludes the legacy `user_preferences` table.
+- Run `npm run check`, `npm test`, and `npm run build` before completing code changes. Do not claim lint is clean unless `npm run lint` exits successfully.
+
+---
+
+## Additional instructions for AI coding agents
+
+Everything above this line is project-specific and should be filled in per repo.
+Everything below is the stable rule set — keep as-is unless you have a specific
+reason to change it for this project.
+
+### Hard rules — do not violate these
+
+- **Don't install new dependencies without asking first**, and don't introduce
+  a different package manager than the one already in use in this repo.
+- **Don't fabricate data** for benchmarks, logs, or anything used for real
+  measurement, grading, or competition tracking.
+- **Do not run `npm run db:push --force` or apply destructive database changes without explicit approval.**
+
+### Workflow expectations
+
+- Ask before any irreversible action (deleting files, dropping tables, force
+  push, rewriting shared history).
+- Keep commits atomic and scoped to one logical change. Use conventional
+  commits (`feat:`, `fix:`, `chore:`).
+- Explain *why* in commit messages and PR descriptions for non-trivial changes.
+- Don't merge PRs with failing CI — flag it instead.
+- Ask rather than guess when a task is ambiguous or underspecified.
+
+## Rules
+
+- Never force push to main
+- Always write tests before marking a task done
+- Use conventional commits (`feat:`, `fix:`, `chore:`)
+- Never commit secrets, API keys, or `.env` files — verify `.gitignore` covers them
+- Don't merge PRs with failing CI; flag it instead
+- Ask before any irreversible action (deleting files, dropping tables, etc.)
+- Don't install new dependencies without asking first
+- Don't rewrite git history on shared branches without explicit confirmation
+- Ask rather than guess when a task is ambiguous or underspecified
+- Explain *why* in commit messages and PR descriptions for non-trivial changes
+- Don't mark tasks done if tests were skipped, mocked, or not actually run
+- No emojis in commit messages, code, or comments
+- Write comments in simple language explaining *why* — keep them brief and only when necessary
+- No emojis in READMEs, commit messages, or other non-code content
+- Provide clear, concise descriptions in commit messages and PR descriptions
+- Keep README in sync with code changes; verify consistency before every push, follow template structure exactly
+- Check the project for existing templates and follow them exactly
+- Always write fast, clean, and efficient code — optimize for performance and reliability. No performance regressions, technical debt, or slop. Code must be well-tested and production-ready before merging.
+
+### Pi agent notes
+
+If this session is running under a different agent (OpenCode, Codex, etc.),
+skip this section entirely — every tool and slash command below is Pi-specific
+and won't exist in your environment.
+
+This repo is worked on with the Pi coding agent.
+
+Full installed extension set and what each one is for. This is the complete
+toolbox available in this repo — use the right tool for the job rather than
+falling back to raw bash/grep commands when a more precise extension covers it.
+
+**Core**
+- **`pi-web-access`** — web search/fetch. Use for anything requiring current
+  info, docs lookups, or external verification instead of relying on
+  training-data knowledge of libraries/APIs.
+
+**Search & navigation**
+- **`@ff-labs/pi-fff`** — fuzzy file and content search. Prefer this over
+  `find`/`ls` guessing when locating a file by partial name or recent usage.
+- **`pi-lsp`** — real LSP-backed navigation (go-to-def, references,
+  diagnostics). Prefer this over grep-based exploration whenever precision
+  matters — it gives exact answers instead of scanning files.
+- **`pi-repos`** — remote GitHub repo tools; use when a task involves reading
+  or referencing a repo other than this one without cloning it manually.
+- **`repo-baby`** — codebase orientation via the `scope` CLI + skill
+  (Tree-sitter symbol extraction, ranked read order and import in-degree). Use
+  at the start of a session in unfamiliar parts of this codebase, or if this
+  repo is inherited/large — not needed for areas you already know well.
+
+**Editing**
+- **`pi-hashline-edit-pro`** — the file-editing tool. Use this as the default
+  edit path rather than raw find/replace shell commands.
+
+**Context management**
+- **`pi-blackhole`** — unified compaction + observational memory. Replaces
+  Pi's default LLM-based compaction with deterministic, zero-cost algorithmic
+  summarization, plus a memory layer (observations + reflections) that
+  survives compaction. Configured for the high-context preset. If a session
+  has gone through compaction, use the `recall` tool to retrieve exact detail
+  — file paths, error messages, prior decisions — rather than assuming it's
+  gone or re-deriving it from scratch. `/blackhole-memory status` shows
+  pipeline state; `/blackhole-recall <query>` searches full session history
+  including compacted material.
+- **`pi-skill-optimizer`** — passively trims the skill catalog and tool
+  arrays on every request. Automatic, no action needed.
+
+**Workflow, planning, sessions**
+- **`@juicesharp/rpiv-ask-user-question`** — use this to ask a structured
+  clarifying question instead of guessing on genuinely ambiguous asks.
+- **`@juicesharp/rpiv-todo`** — track multi-step work as todos so state
+  isn't lost across a long session; use for any task with 3+ discrete steps.
+- **`@narumitw/pi-plan-mode`** — use plan mode for anything non-trivial
+  before writing code; don't skip straight to implementation on ambiguous
+  or architecturally significant asks.
+- **`@vanillagreen/pi-session-manager`** — session state persists across
+  restarts; don't assume a fresh session has no prior context — check for a
+  resumable session before starting from scratch.
+
+**Code quality**
+- **`pi-simplify`** — run `/simplify` on changed lines before considering a
+  non-trivial change done.
+- **`@dietrichgebert/ponytail`** — YAGNI-first: don't build it if you can
+  avoid it, reuse existing code, fix root causes at the shared function
+  rather than patching call sites. Deliberate shortcuts get a ponytail
+  comment with a named ceiling and upgrade path, not silent debt.
+  {{If this repo has scientific/research code where "minimum code" is the
+  wrong default (e.g. a research contribution that needs to be implemented
+  in full), note that exclusion here explicitly.}}
+
+**Design (frontend/UI work only)**
+- **`pi-frontend-create`** — activates automatically when building web, app, desktop app UI
+  components, pages, or landing pages (or invoke directly with
+  `/skill:frontend-create`). Enforces a banned-pattern list against generic
+  AI-design tells (centered heroes, teal/cyan accents, fade-up scroll
+  reveals, overused typefaces) and a 13-point anti-pattern checklist before
+  delivery. Run `/simplify` afterward on any generated code, same as other
+  frontend work.

@@ -1,7 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { lazy, Suspense, useMemo, useState, useEffect, useCallback } from 'react';
 import { FileTree, type FileItem } from '@/components/files/FileTree';
-import { CreateDialog } from '@/components/files/CreateDialog';
-import NoteEditor from '@/components/NoteEditor';
 import Folder from '@/components/Folder';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -9,11 +7,14 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { storage } from '@/lib/supabase-storage';
-import { FileText, Plus, FolderOpen, FolderIcon, Layers, BookOpen, Clock, Trash2 } from 'lucide-react';
-import type { Note, Folder as FolderType, FlashcardDeck, Flashcard } from '@shared/schema';
-import { FlashcardViewer } from '@/components/tools/FlashcardViewer';
+import { Plus, FolderOpen, Layers, BookOpen, Clock, Trash2 } from 'lucide-react';
+import type { Note, Folder as FolderType, FlashcardDeck } from '@shared/schema';
 import type { FlashcardDeckData } from '@/components/tools/FlashcardViewer';
-import { FlashcardCreator } from '@/components/tools/FlashcardCreator';
+
+const LazyCreateDialog = lazy(() => import('@/components/files/CreateDialog'));
+const LazyNoteEditor = lazy(() => import('@/components/NoteEditor'));
+const LazyFlashcardViewer = lazy(() => import('@/components/tools/FlashcardViewer'));
+const LazyFlashcardCreator = lazy(() => import('@/components/tools/FlashcardCreator'));
 
 export const FilesPage = () => {
   const { user } = useAuth();
@@ -31,13 +32,7 @@ export const FilesPage = () => {
   const [viewingDeck, setViewingDeck] = useState<FlashcardDeckData | null>(null);
   const [editingDeck, setEditingDeck] = useState<FlashcardDeckData | null>(null);
 
-  useEffect(() => {
-    if (user?.uid) {
-      loadAllFiles();
-    }
-  }, [user?.uid]);
-
-  const loadAllFiles = async () => {
+  const loadAllFiles = useCallback(async () => {
     if (!user?.uid) return;
     
     setIsLoading(true);
@@ -56,7 +51,13 @@ export const FilesPage = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (user?.uid) {
+      void loadAllFiles();
+    }
+  }, [user?.uid, loadAllFiles]);
 
   const handleSelectItem = (item: FileItem) => {
     setSelectedItem(item);
@@ -177,13 +178,13 @@ export const FilesPage = () => {
     e.preventDefault();
     e.stopPropagation();
     e.dataTransfer.dropEffect = 'move';
-    setDropTargetId(folderId);
+    setDropTargetId((current) => current === folderId ? current : folderId);
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setDropTargetId(null);
+    setDropTargetId((current) => current === null ? current : null);
   };
 
   const handleDrop = async (e: React.DragEvent, folderId: string | null) => {
@@ -264,7 +265,7 @@ export const FilesPage = () => {
     if (!user?.uid) return;
     
     try {
-      const folder = await storage.createFolder({
+      await storage.createFolder({
         userId: user.uid,
         name,
       });
@@ -285,12 +286,29 @@ export const FilesPage = () => {
     }
   };
 
+  const displayItems = useMemo(() => {
+    if (selectedItem?.type === 'folder') {
+      return {
+        folders: folders.filter((folder) => folder.parentFolderId === selectedItem.id),
+        notes: notes.filter((note) => note.folderId === selectedItem.id),
+        decks: flashcardDecks.filter((deck) => deck.folderId === selectedItem.id),
+      };
+    }
+
+    return {
+      folders: folders.filter((folder) => !folder.parentFolderId),
+      notes: notes.filter((note) => !note.folderId),
+      decks: flashcardDecks.filter((deck) => !deck.folderId),
+    };
+  }, [folders, notes, flashcardDecks, selectedItem]);
+
   const renderContent = () => {
     // If viewing a note in editor mode
     if (viewMode === 'editor' && selectedItem?.type === 'note' && currentNote) {
       return (
         <div className="h-full">
-          <NoteEditor
+          <Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Loading editor...</div>}>
+            <LazyNoteEditor
             note={currentNote}
             onSave={async (noteData) => {
               try {
@@ -312,23 +330,12 @@ export const FilesPage = () => {
               setCurrentNote(null);
             }}
             classes={[]}
-          />
+            />
+          </Suspense>
         </div>
       );
     }
 
-    // Grid view showing folders, notes, and flashcard decks
-    const displayItems = selectedItem?.type === 'folder' 
-      ? {
-          folders: folders.filter(f => f.parentFolderId === selectedItem.id),
-          notes: notes.filter(n => n.folderId === selectedItem.id),
-          decks: flashcardDecks.filter(d => d.folderId === selectedItem.id),
-        }
-      : {
-          folders: folders.filter(f => !f.parentFolderId),
-          notes: notes.filter(n => !n.folderId),
-          decks: flashcardDecks.filter(d => !d.folderId),
-        };
 
     const hasItems = displayItems.folders.length > 0 || displayItems.notes.length > 0 || displayItems.decks.length > 0;
 
@@ -425,7 +432,7 @@ export const FilesPage = () => {
                   draggable
                   onDragStart={(e) => handleDragStart(e, note.id, 'note')}
                   onDragEnd={handleDragEnd}
-                  onClick={(e) => {
+                  onClick={() => {
                     if (!draggedItem) {
                       handleSelectItem({ id: note.id, type: 'note', name: note.title });
                     }
@@ -539,17 +546,15 @@ export const FilesPage = () => {
       });
 
       const existingCards = await storage.getFlashcardsByDeckId(updatedDeckData.id);
-      for (const card of existingCards) {
-        await storage.deleteFlashcard(card.id);
-      }
-      for (const card of updatedDeckData.cards) {
-        await storage.createFlashcard({
+      await Promise.all(existingCards.map((card) => storage.deleteFlashcard(card.id)));
+      await storage.createFlashcardsBatch(
+        updatedDeckData.cards.map((card, position) => ({
           deckId: updatedDeckData.id,
           term: card.term,
           definition: card.definition,
-          position: updatedDeckData.cards.indexOf(card),
-        });
-      }
+          position,
+        })),
+      );
 
       // Refresh and go back to viewer
       const freshCards = await storage.getFlashcardsByDeckId(updatedDeckData.id);
@@ -576,14 +581,15 @@ export const FilesPage = () => {
       console.error('Error saving edited deck:', err);
       toast({ title: 'Failed to save', description: err?.message || 'Something went wrong.', variant: 'destructive' });
     }
-  }, [user?.uid, toast]);
+  }, [user?.uid, toast, loadAllFiles]);
 
   return (
     <>
       {/* Full-screen flashcard editor overlay */}
       {editingDeck && (
         <div className="fixed inset-0 z-50 bg-background overflow-auto">
-          <FlashcardCreator
+          <Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Loading flashcard editor...</div>}>
+            <LazyFlashcardCreator
             initialDeck={editingDeck}
             onClose={() => {
               setEditingDeck(null);
@@ -593,14 +599,16 @@ export const FilesPage = () => {
               }
             }}
             onSave={handleEditDeckSave}
-          />
+            />
+          </Suspense>
         </div>
       )}
 
       {/* Full-screen flashcard viewer overlay */}
       {viewingDeck && !editingDeck && (
         <div className="fixed inset-0 z-50 bg-background overflow-auto">
-          <FlashcardViewer
+          <Suspense fallback={<div className="p-8 text-sm text-muted-foreground">Loading flashcard viewer...</div>}>
+            <LazyFlashcardViewer
             deck={viewingDeck}
             onClose={() => {
               setViewingDeck(null);
@@ -609,7 +617,8 @@ export const FilesPage = () => {
             onEdit={() => {
               setEditingDeck(viewingDeck);
             }}
-          />
+            />
+          </Suspense>
         </div>
       )}
 
@@ -617,6 +626,11 @@ export const FilesPage = () => {
         {/* Left Sidebar - File Tree */}
         <div className="w-64 border-r bg-background flex-shrink-0">
           <FileTree
+            folders={folders}
+            notes={notes}
+            flashcardDecks={flashcardDecks}
+            isLoading={isLoading}
+            onRefresh={loadAllFiles}
             onSelectItem={handleSelectItem}
             selectedItemId={selectedItem?.id}
           />
@@ -629,13 +643,15 @@ export const FilesPage = () => {
       </div>
 
       {/* Create Dialog */}
-      <CreateDialog
+      <Suspense fallback={null}>
+        <LazyCreateDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
         onCreateNote={createNewNote}
         onCreateFolder={createNewFolder}
         onFilesChanged={loadAllFiles}
-      />
+        />
+      </Suspense>
     </>
   );
 };

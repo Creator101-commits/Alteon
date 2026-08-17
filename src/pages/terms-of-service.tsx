@@ -52,7 +52,6 @@ export default function TermsOfService() {
                   <li>Note-taking and organization tools</li>
                   <li>Flashcard creation and study tools</li>
                   <li>AI-powered study assistance</li>
-                  <li>Productivity analytics and insights</li>
                   <li>Integration with educational platforms</li>
                 </ul>
               </div>
@@ -134,7 +133,6 @@ export default function TermsOfService() {
                 <h3 className="text-lg font-medium text-foreground">6.2 Data Processing</h3>
                 <ul className="list-disc ml-6 space-y-1">
                   <li>We use automated systems to organize and analyze your data</li>
-                  <li>Analytics are generated from your usage patterns</li>
                   <li>No human review of your private study content</li>
                 </ul>
               </div>

@@ -1,5 +1,5 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 
 // In-memory session storage (for serverless, consider using Redis or Supabase)
 // For production, you should use a persistent store
@@ -32,7 +32,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         // Handle file upload
         // Note: For Vercel, you may need to use a library like formidable
         // or handle the file differently
-        const sessionId = uuidv4();
+        const sessionId = randomUUID();
         
         // For now, return a session ID - actual processing would be done asynchronously
         sessions.set(sessionId, {
@@ -51,7 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       // Handle JSON request (e.g., text content)
       const { content, type } = req.body;
-      const sessionId = uuidv4();
+      const sessionId = randomUUID();
 
       sessions.set(sessionId, {
         id: sessionId,

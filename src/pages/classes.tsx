@@ -1,33 +1,22 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { SyncFeatureWrapper } from '@/components/SyncFeatureWrapper';
 import { useGoogleClassroom } from '@/hooks/useGoogleClassroom';
-import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
-import { usePersistentData } from '@/hooks/usePersistentData';
 import { useClassManagement } from '@/hooks/useClassManagement';
 import { ClassCard } from '@/components/memoized';
 import { ErrorHandler } from '@/lib/errorHandler';
 import { ClassSkeleton } from '@/components/LoadingSkeletons';
-import { EmptyState, NoClasses } from '@/components/EmptyStates';
+import { NoClasses } from '@/components/EmptyStates';
 import { classSchema, validateForm } from '@/lib/validationSchemas';
-import { RefreshCw, BookOpen, Users, Calendar, ExternalLink, AlertCircle, CheckCircle, Plus, Palette, Trash2 } from 'lucide-react';
+import { RefreshCw, AlertCircle, Plus } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function Classes() {
-  const { courses, isLoading, error, syncClassroomData, isAuthenticated } = useGoogleClassroom();
-  const { toast } = useToast();
-  const { isRestoring } = usePersistentData();
+  const { courses, isLoading, error, syncClassroomData } = useGoogleClassroom();
   const { createClass, confirmDeleteClass, isDeleting, isCreating } = useClassManagement();
-  const { user } = useAuth();
   const [isSyncing, setIsSyncing] = useState(false);
   const [newClass, setNewClass] = useState({
     name: '',
@@ -46,8 +35,11 @@ export default function Classes() {
 
   const handleSync = async () => {
     setIsSyncing(true);
-    await syncClassroomData(true); // true = show toast notifications for manual sync
-    setIsSyncing(false);
+    try {
+      await syncClassroomData(true);
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   const handleCreateClass = async () => {
@@ -121,11 +113,11 @@ export default function Classes() {
           variant="outline"
           size="sm"
           onClick={handleSync}
-          disabled={isSyncing || isRestoring}
+          disabled={isSyncing}
           className="text-sm"
         >
-          <RefreshCw className={`h-3 w-3 mr-1 ${isSyncing || isRestoring ? 'animate-spin' : ''}`} />
-          {isSyncing || isRestoring ? 'Refreshing...' : 'Refresh'}
+          <RefreshCw className={`h-3 w-3 mr-1 ${isSyncing ? 'animate-spin' : ''}`} />
+          {isSyncing ? 'Refreshing...' : 'Refresh'}
         </Button>
         <Dialog>
           <DialogTrigger asChild>
@@ -245,11 +237,11 @@ export default function Classes() {
         </Alert>
       )}
 
-      {(isLoading || isRestoring) && !courses.length ? (
+      {isLoading && !courses.length ? (
         <ClassSkeleton />
       ) : null}
 
-      {!isLoading && !isRestoring && courses.length === 0 ? (
+      {!isLoading && courses.length === 0 ? (
         <NoClasses onAdd={() => {/* Dialog trigger handled by state */}} />
       ) : null}
 

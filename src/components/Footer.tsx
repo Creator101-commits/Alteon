@@ -1,3 +1,4 @@
+import logo from "../../images/alteon-logo.png";
 import { Link } from 'wouter';
 
 export function Footer() {
@@ -7,7 +8,7 @@ export function Footer() {
         <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
           {/* Logo and Copyright */}
           <div className="flex items-center space-x-2">
-            <img src="../images/alteon-logo.png" alt="Alteon Logo" className="h-8 w-8 object-contain" />
+            <img src={logo} alt="Alteon Logo" className="h-8 w-8 object-contain" />
             <div>
               <p className="text-sm text-muted-foreground">
                 © {new Date().getFullYear()} Alteon. All rights reserved.

@@ -138,7 +138,11 @@ export function useGPACalculator() {
       const name = target.courseName;
 
       const next = new Set(cachedExcludedCourses);
-      newExcluded ? next.add(name) : next.delete(name);
+      if (newExcluded) {
+        next.add(name);
+      } else {
+        next.delete(name);
+      }
       setCachedExcludedCourses(next);
       saveExcludedCourses(next);
 

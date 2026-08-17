@@ -92,7 +92,7 @@ export default function HabitTracker() {
     const load = async () => {
       if (!user) return;
       try {
-        const data = await supabaseStorage.getHabitsForUser(user.uid);
+        const data = await supabaseStorage.getHabitsByUserId(user.uid);
 
         const normalized: Habit[] = data.map((h: any) => ({
           ...h,

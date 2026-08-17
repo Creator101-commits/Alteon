@@ -96,12 +96,12 @@ export const KanbanView: React.FC = () => {
             <>
               <h2 className="text-2xl font-semibold mb-2 text-orange-600">Database Setup Required</h2>
               <p className="text-muted-foreground mb-4">
-                The to-do board tables haven't been created yet. Please run the database migration script.
+                The to-do board tables haven't been created yet. Run `npm run db:push` to apply the schema.
               </p>
               <div className="bg-muted p-4 rounded-lg text-left text-sm">
-                <p className="font-mono mb-2">supabase/migrations/todo_boards_schema.sql</p>
+                Run the command from the project root.
                 <p className="text-xs text-muted-foreground">
-                  Execute this SQL file in your Supabase SQL editor to create the required tables.
+                  This applies the required tables to Supabase.
                 </p>
               </div>
             </>

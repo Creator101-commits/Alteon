@@ -4,7 +4,6 @@
 import { useMemo, useState, useCallback } from 'react';
 import { useGoogleClassroom } from '@/hooks/useGoogleClassroom';
 import { useAuth } from '@/contexts/AuthContext';
-import { usePersistentData } from '@/hooks/usePersistentData';
 import { useToast } from '@/hooks/use-toast';
 import { supabaseStorage as storage } from '@/lib/supabase-storage';
 import { ErrorHandler } from '@/lib/errorHandler';
@@ -16,7 +15,6 @@ export function useAssignments() {
     useGoogleClassroom();
   const { user } = useAuth();
   const { toast } = useToast();
-  const { isRestoring, isRestored } = usePersistentData();
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -30,8 +28,11 @@ export function useAssignments() {
 
   const handleSync = useCallback(async () => {
     setIsSyncing(true);
-    await syncClassroomData(true);
-    setIsSyncing(false);
+    try {
+      await syncClassroomData(true);
+    } finally {
+      setIsSyncing(false);
+    }
   }, [syncClassroomData]);
 
   const markAssignmentComplete = useCallback(
@@ -190,8 +191,6 @@ export function useAssignments() {
     const optimisticAssignments = [...existingAssignments, tempAssignment];
     localStorage.setItem(storageKey, JSON.stringify(optimisticAssignments));
 
-    await syncClassroomData(false);
-
     try {
       const createdAssignment = await storage.createAssignment(assignmentData);
 
@@ -270,8 +269,6 @@ export function useAssignments() {
     filteredAssignments,
     courses,
     isLoading,
-    isRestoring,
-    isRestored,
     error,
     isAuthenticated,
 

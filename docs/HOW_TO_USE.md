@@ -13,7 +13,6 @@ Your Alteon app has been successfully migrated from Express + Oracle to Vercel +
 ### Frontend
 - ✅ **Migrated Hooks:**
   - useClassManagement
-  - useDashboardData (6 hooks)
   - useTodoBoards
   - SimpleTodoList
   - Habits page
@@ -165,7 +164,7 @@ This creates optimized build in `dist/` directory.
 **Problem**: Database schema not applied  
 **Solution**:
 1. Go to Supabase Dashboard → SQL Editor
-2. Run migration file: `supabase/migrations/001_initial_schema.sql`
+2. Apply the schema with `npm run db:push`
 3. Verify all 21 tables created
 
 ---
@@ -292,7 +291,7 @@ const assignment = await supabaseStorage.createAssignment({
 - `package.json` - Dependencies and scripts
 
 ### Database
-- `supabase/migrations/001_initial_schema.sql` - Complete schema
+- `shared/schema.ts` - Database schema definitions
 - `src/lib/supabase.ts` - Supabase client
 - `src/lib/supabase-storage.ts` - Storage layer (80+ methods)
 
@@ -311,16 +310,15 @@ const assignment = await supabaseStorage.createAssignment({
 
 ### Adding a New Table
 1. Add schema to `shared/schema.ts`
-2. Create migration in `supabase/migrations/`
+2. Apply the schema with `npm run db:push`
 3. Add methods to `SupabaseStorage` class
 4. Use in components via `supabaseStorage.method()`
 
 ### Updating Existing Data
 ```typescript
-// Example: Update assignment
-await supabaseStorage.updateAssignment(assignmentId, {
-  title: 'New Title',
-  completed: true
+// Example: Update a class
+await supabaseStorage.updateClass(classId, {
+  name: 'New Name'
 });
 ```
 
@@ -328,7 +326,7 @@ await supabaseStorage.updateAssignment(assignmentId, {
 ```typescript
 const { data: assignments } = useQuery({
   queryKey: ['assignments', user?.uid],
-  queryFn: () => supabaseStorage.getAssignmentsForUser(user!.uid),
+  queryFn: () => supabaseStorage.getAssignmentsByUserId(user!.uid),
   staleTime: 5 * 60 * 1000, // 5 minutes
   enabled: !!user
 });
@@ -351,7 +349,6 @@ const { data: assignments } = useQuery({
 ### Some API Calls in Old Components
 Files that may need updates:
 - `src/pages/ai-chat.tsx`
-- `src/components/tools/Flashcards.tsx`
 - `src/contexts/BoardContext.tsx`
 
 ---

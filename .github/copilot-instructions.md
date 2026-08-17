@@ -19,7 +19,7 @@ Concise, project-specific guidance for AI coding agents. Focus on existing patte
 - Use `storage` from `src/lib/supabase-storage.ts` for all database operations.
 - Methods follow pattern: `getXByUserId()`, `createX()`, `updateX()`, `deleteX()`.
 - Supabase client configured in `src/lib/supabase.ts`.
-- Schema changes: modify `shared/schema.ts`, create migration in `supabase/migrations/`.
+- Schema changes: modify `shared/schema.ts`, then run `npm run db:push`.
 
 ### Frontend Conventions
 - Routing via Wouter (`src/pages/**`). Pages import contexts from `src/contexts/` (e.g. Calendar, Auth, AppState).
@@ -34,7 +34,7 @@ npm run build        # Vite production build (dist/)
 npm run check        # Type check
 vercel dev           # Local Vercel dev with API routes
 ```
-Database migrations: modify `shared/schema.ts`, add SQL to `supabase/migrations/`.
+Database schema: modify `shared/schema.ts`, then run `npm run db:push`.
 
 ### Integration Patterns
 - External sync: Google Classroom sync uses storage methods directly.

@@ -48,7 +48,7 @@ export const Sidebar: React.FC = () => {
     
     const loadDashboardTodos = async () => {
       try {
-        const todos = await supabaseStorage.getQuickTasks(user.uid);
+        const todos = await supabaseStorage.getQuickTasksByUserId(user.uid);
         // Only get incomplete tasks
         const incompleteTodos = todos.filter((t) => !t.completed);
         setDashboardTodos(incompleteTodos);
@@ -58,12 +58,14 @@ export const Sidebar: React.FC = () => {
     };
 
     loadDashboardTodos();
-    
-    // Poll for changes every 10 seconds
-    const interval = setInterval(loadDashboardTodos, 10000);
-    
+
+    const handleFocus = () => {
+      void loadDashboardTodos();
+    };
+    window.addEventListener('focus', handleFocus);
+
     return () => {
-      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
     };
   }, [user]);
 

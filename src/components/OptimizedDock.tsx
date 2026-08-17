@@ -3,12 +3,11 @@
  * Now with mobile-responsive touch targets (44px minimum)
  */
 
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'wouter';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { useAppState } from '@/contexts/AppStateContext';
-import { useHAC } from '@/contexts/HACContext';
+import { usePreferences } from '@/contexts/AppStateContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useMobileDetection } from '@/lib/mobileDetection';
@@ -37,7 +36,6 @@ interface DockItem {
   path: string;
   icon: React.ComponentType<{ className?: string }>;
   badge?: number;
-  requiresHAC?: boolean; // Only show if HAC is connected
 }
 
 const baseDockItems: DockItem[] = [
@@ -82,7 +80,6 @@ const baseDockItems: DockItem[] = [
     label: 'HAC Grades',
     path: '/hac-grades',
     icon: School,
-    requiresHAC: true,
   },
   {
     id: 'ai-chat',
@@ -105,22 +102,10 @@ interface OptimizedDockProps {
 export function OptimizedDock({ className }: OptimizedDockProps) {
   const [location, setLocation] = useLocation();
   const [isExpanded, setIsExpanded] = useState(false);
-  const { state } = useAppState();
-  const { preferences } = state;
+  const { preferences } = usePreferences();
   const { isMobile, isTouch, screenSize } = useMobileDetection();
   
-  // HAC context for conditional dock item
-  const { isConnected: isHACConnected } = useHAC();
-
-  // Filter dock items based on HAC connection status
-  const dockItems = useMemo(() => {
-    return baseDockItems.filter(item => {
-      if (item.requiresHAC && !isHACConnected) {
-        return false;
-      }
-      return true;
-    });
-  }, [isHACConnected]);
+  const dockItems = baseDockItems;
 
   // Calculate touch target size based on device
   const touchTargetSize = isMobile ? 44 : isTouch ? 40 : 36; // iOS HIG minimum 44px

@@ -90,40 +90,4 @@ export function Skeleton({ className, lines = 1 }: SkeletonProps) {
   );
 }
 
-// Optimized card skeleton for dashboard items
-export function CardSkeleton() {
-  return (
-    <div className="p-6 border rounded-lg space-y-4">
-      <div className="flex items-center space-x-3">
-        <Skeleton className="h-8 w-8 rounded-full" />
-        <Skeleton className="h-4 w-24" />
-      </div>
-      <Skeleton lines={2} className="h-3" />
-      <div className="flex justify-between items-center">
-        <Skeleton className="h-3 w-16" />
-        <Skeleton className="h-6 w-12 rounded-full" />
-      </div>
-    </div>
-  );
-}
 
-// List skeleton for assignments, notes, etc.
-export function ListSkeleton({ count = 3 }: { count?: number }) {
-  return (
-    <div className="space-y-3">
-      {Array.from({ length: count }).map((_, i) => (
-        <div key={i} className="p-4 border rounded-lg space-y-2">
-          <div className="flex items-center justify-between">
-            <Skeleton className="h-4 w-1/3" />
-            <Skeleton className="h-3 w-16" />
-          </div>
-          <Skeleton lines={2} className="h-3" />
-          <div className="flex items-center space-x-2">
-            <Skeleton className="h-6 w-16 rounded-full" />
-            <Skeleton className="h-6 w-20 rounded-full" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
