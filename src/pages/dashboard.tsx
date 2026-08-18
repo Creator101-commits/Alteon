@@ -5,6 +5,7 @@ import { useCalendar, type CalendarEvent } from '@/contexts/CalendarContext';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { SimpleTodoList } from '@/components/SimpleTodoList';
+import { AssignmentsWidget, NotesWidget } from '@/components/DashboardWidgets';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 function CalendarComponent() {
@@ -156,6 +157,10 @@ export default function Dashboard() {
         </div>
 
         <div className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <AssignmentsWidget />
+            <NotesWidget />
+          </div>
           <CalendarComponent />
           <SimpleTodoList />
         </div>
