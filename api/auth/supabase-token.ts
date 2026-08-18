@@ -1,7 +1,7 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { importX509, jwtVerify, SignJWT, decodeProtectedHeader } from 'jose';
 
-const FIREBASE_PROJECT_ID = 'ystudypal-47e1d';
+const FIREBASE_PROJECT_ID = 'studypal-47e1d';
 const GOOGLE_CERTS_URL =
   'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com';
 
