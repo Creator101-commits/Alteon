@@ -140,7 +140,7 @@ function formatScore(score: string, percentage?: number | null, earnedPoints?: n
 export default function CourseGrades() {
   const [, params] = useRoute('/course-grades/:courseId');
   const [, setLocation] = useLocation();
-  const { gradesData, isLoading, fetchGradesForCycle, cycleGradesCache } = useHAC();
+  const { gradesData, isLoading, fetchGradesForCycle, error } = useHAC();
   
   const courseId = params?.courseId ? decodeURIComponent(params.courseId) : null;
   
@@ -276,7 +276,7 @@ export default function CourseGrades() {
           </Button>
           <Card className="mt-8">
             <CardContent className="py-12 text-center">
-              <p className="text-muted-foreground">Course not found</p>
+              <p className="text-muted-foreground">{error || 'Course not found'}</p>
             </CardContent>
           </Card>
         </div>

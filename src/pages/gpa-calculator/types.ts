@@ -62,11 +62,14 @@ export function detectCourseLevel(courseName: string, courseCode: string): Cours
   const combined = nameUpper + ' ' + codeUpper;
 
   if (
-    combined.includes('AP ') ||
-    combined.includes('A.P.') ||
-    combined.includes(' AP') ||
-    /\bAP\b/.test(combined) ||
-    combined.includes('ADVANCED PLACEMENT')
+    !(/\bPRE[\s-]?AP\b|\bPAP\b/.test(combined)) &&
+    (
+      combined.includes('AP ') ||
+      combined.includes('A.P.') ||
+      combined.includes(' AP') ||
+      /\bAP\b/.test(combined) ||
+      combined.includes('ADVANCED PLACEMENT')
+    )
   ) {
     return 'ap';
   }

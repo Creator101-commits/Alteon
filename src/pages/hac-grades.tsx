@@ -6,7 +6,7 @@
  * cycle switching via PostBack and prefetch cache for instant tab switching.
  */
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useHAC } from '@/contexts/HACContext';
 import { useLocation } from 'wouter';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,7 +23,8 @@ import {
 export default function HACGrades() {
   const { 
     isConnected, 
-    isLoading, 
+    isLoading,
+    isRestoring,
     gradesData, 
     reportCard,
     refreshGrades, 
@@ -38,7 +39,7 @@ export default function HACGrades() {
   const [selectedCycleValue, setSelectedCycleValue] = useState<string>('');
   const [loadingCycle, setLoadingCycle] = useState(false);
   const [cycleData, setCycleData] = useState<typeof gradesData>(null);
-
+  const cycleRequestRef = useRef(0);
   // Fetch report card on mount for past cycle summary data
   useEffect(() => {
     if (isConnected && !reportCard) {
@@ -60,28 +61,37 @@ export default function HACGrades() {
 
   // When user selects a different cycle tab, fetch data (from prefetch cache or server)
   const handleCycleSelect = useCallback(async (cycleValue: string) => {
+    const requestId = ++cycleRequestRef.current;
     setSelectedCycleValue(cycleValue);
     
-    // If it's the current/default cycle, use gradesData directly
+    // If it's the current/default cycle, use gradesData directly.
     if (cycleValue === currentCycleValue) {
-      setCycleData(null); // null = use gradesData
+      setCycleData(null);
+      setLoadingCycle(false);
       return;
     }
     
-    // Check cache first (instant if prefetched)
+    // Do not show a previous cycle while the new one is loading.
+    setCycleData(null);
     const cached = cycleGradesCache.get(cycleValue);
     if (cached) {
-      setCycleData(cached);
+      if (requestId === cycleRequestRef.current) {
+        setCycleData(cached);
+        setLoadingCycle(false);
+      }
       return;
     }
     
-    // Fetch from server
     setLoadingCycle(true);
     try {
       const data = await fetchGradesForCycle(cycleValue);
-      setCycleData(data);
+      if (requestId === cycleRequestRef.current) {
+        setCycleData(data);
+      }
     } finally {
-      setLoadingCycle(false);
+      if (requestId === cycleRequestRef.current) {
+        setLoadingCycle(false);
+      }
     }
   }, [currentCycleValue, cycleGradesCache, fetchGradesForCycle]);
 
@@ -96,7 +106,7 @@ export default function HACGrades() {
 
   // Redirect to settings if not connected
   useEffect(() => {
-    if (!isConnected && !isLoading) {
+    if (!isConnected && !isLoading && !isRestoring) {
       const timer = setTimeout(() => {
         if (!isConnected) {
           setLocation('/settings');
@@ -104,7 +114,22 @@ export default function HACGrades() {
       }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [isConnected, isLoading, setLocation]);
+  }, [isConnected, isLoading, isRestoring, setLocation]);
+
+  if (isRestoring) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="max-w-4xl mx-auto py-8 px-6">
+          <Card>
+            <CardContent className="py-12 text-center" role="status" aria-live="polite">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" aria-hidden="true" />
+              <p className="text-muted-foreground">Restoring your HAC connection...</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   if (!isConnected) {
     return (

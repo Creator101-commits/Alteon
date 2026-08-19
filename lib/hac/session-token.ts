@@ -28,7 +28,11 @@ export interface SessionPayload {
 
 // ── Key derivation ──────────────────────────────────────────────────────────────
 
-const SECRET = process.env.HAC_SESSION_SECRET || 'alteon-hac-dev-secret-do-not-use-in-prod';
+const configuredSecret = process.env.HAC_SESSION_SECRET;
+if (!configuredSecret && process.env.NODE_ENV === 'production') {
+  throw new Error('HAC_SESSION_SECRET must be configured in production');
+}
+const SECRET = configuredSecret || 'alteon-hac-dev-secret-do-not-use-in-prod';
 const SALT = 'alteon-hac-salt';
 const KEY = scryptSync(SECRET, SALT, 32); // 256-bit key
 

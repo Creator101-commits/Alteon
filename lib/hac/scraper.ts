@@ -41,8 +41,15 @@ const RETRY_CONFIG = {
   baseDelayMs: 500,  // 500ms → 1000ms → 2000ms
 };
 
+export class HACSessionExpiredError extends Error {
+  constructor(message = 'HAC session expired') {
+    super(message);
+    this.name = 'HACSessionExpiredError';
+  }
+}
+
 /** Regex patterns for finding the cycle dropdown by ID */
-const CYCLE_DROPDOWN_ID_PATTERN = /plnMain_ddlReportCardRuns|ddlReportPeriods|ddlCompetencies|ddlReportingPeriod|plnMain_ddlReportPeriods|plnMain_ddlCompetencies/;
+const CYCLE_DROPDOWN_ID_PATTERN = /plnMain_ddlReportCardRuns|ddlReportCardRuns|ddlReportPeriods|ddlCompetencies|ddlReportingPeriod|plnMain_ddlReportPeriods|plnMain_ddlCompetencies/i;
 
 /** Keywords that indicate an option belongs to a cycle/reporting-period dropdown */
 const CYCLE_KEYWORDS = ['CYCLE', 'REPORTING PERIOD', 'INTERIM', 'SEMESTER', 'QUARTER', 'RUN'];
@@ -53,17 +60,19 @@ class CookieJar {
   private cookies = new Map<string, string>();
   
   addFromResponse(response: Response) {
+    const headers = response.headers as any;
     let setCookieHeaders: string[] = [];
     
-    if (typeof (response.headers as any).getSetCookie === 'function') {
-      setCookieHeaders = (response.headers as any).getSetCookie();
-    } else if (typeof (response.headers as any).raw === 'function') {
-      const rawHeaders = (response.headers as any).raw();
-      setCookieHeaders = rawHeaders['set-cookie'] || [];
+    if (typeof headers.getSetCookie === 'function') {
+      setCookieHeaders = headers.getSetCookie();
+    } else if (typeof headers.raw === 'function') {
+      setCookieHeaders = headers.raw()['set-cookie'] || [];
     } else {
-      const setCookieHeader = response.headers.get('set-cookie');
+      const setCookieHeader = headers.get('set-cookie');
       if (setCookieHeader) {
-        setCookieHeaders = [setCookieHeader];
+        // Node versions without getSetCookie join headers with commas. Do not
+        // split the commas inside an Expires attribute.
+        setCookieHeaders = setCookieHeader.split(/,(?=\s*(?:__Host-|__Secure-)?[^=;,\s]+=[^;,]*)/);
       }
     }
     
@@ -228,6 +237,11 @@ export function resolveSession(sessionToken: string): HACSession | null {
 export function getCourseLevel(courseName: string): CourseLevel {
   const upper = courseName.toUpperCase();
   
+  // Pre-AP patterns must run before AP because "PRE-AP" also matches AP.
+  if (/\bPRE[\s-]?AP\b|\bPAP\b/i.test(courseName)) {
+    return 'preap';
+  }
+
   // AP patterns: "AP ", " AP", "A.P.", "AP-"
   if (/\bAP\b|A\.P\./i.test(courseName)) {
     return 'ap';
@@ -241,11 +255,6 @@ export function getCourseLevel(courseName: string): CourseLevel {
   // IB (International Baccalaureate) — treated same as AP
   if (/\bIB\b/i.test(courseName)) {
     return 'ap';
-  }
-  
-  // Pre-AP patterns: "PRE-AP", "PREAP", "PAP", "PRE AP"
-  if (/\bPRE[\s-]?AP\b|\bPAP\b/i.test(courseName)) {
-    return 'preap';
   }
   
   // Advanced/Honors patterns: "ADV", "ADVANCED", "HONORS", "GT", "GIFTED"
@@ -304,12 +313,16 @@ export function calculateGpaForGrade(gradePercent: number, courseName: string): 
 export async function createSessionAndLogin(
   username: string, 
   password: string,
-  baseUrl: string = DEFAULT_HAC_BASE_URL
+  baseUrl: string = process.env.HAC_BASE_URL || process.env.VITE_HAC_BASE_URL || DEFAULT_HAC_BASE_URL
 ): Promise<{ session: HACSession | null; error: string | null }> {
   try {
-    console.log('[HAC] Attempting login to:', baseUrl);
-    const loginUrl = `${baseUrl}${HAC_ENDPOINTS.LOGIN}`;
-    
+    const parsedBaseUrl = new URL(baseUrl);
+    if (parsedBaseUrl.protocol !== 'https:' && process.env.NODE_ENV === 'production') {
+      throw new Error('HAC district URL must use HTTPS in production');
+    }
+    const normalizedBaseUrl = parsedBaseUrl.toString().replace(/\/+$/, '');
+    console.log('[HAC] Attempting login to:', normalizedBaseUrl);
+    const loginUrl = `${normalizedBaseUrl}${HAC_ENDPOINTS.LOGIN}`;
     const cookieJar = new CookieJar();
     
     // GET the login page to extract form tokens
@@ -350,9 +363,16 @@ export async function createSessionAndLogin(
     });
     
     console.log('[HAC] Login response status:', loginResponse.status, 'final URL:', finalUrl);
+    const loginResponseHtml = await loginResponse.text();
+    const loginPage = cheerio.load(loginResponseHtml);
+
+    if (!loginResponse.ok) {
+      console.error('[HAC] Login request failed:', loginResponse.status);
+      return { session: null, error: 'Failed to complete HAC login' };
+    }
     
-    // Still on login page = failed
-    if (finalUrl.includes('LogOn')) {
+    // Failed logins can return HTTP 200 with the login form rendered again.
+    if (finalUrl.toLowerCase().includes('/logon') || isLoginPage(loginPage, loginResponseHtml)) {
       console.error('[HAC] Login failed - still on login page');
       return { session: null, error: 'Invalid username or password' };
     }
@@ -370,7 +390,7 @@ export async function createSessionAndLogin(
       cookies: finalCookies,
       username,
       password,
-      baseUrl,
+      baseUrl: normalizedBaseUrl,
       expiresAt,
     });
     
@@ -378,7 +398,7 @@ export async function createSessionAndLogin(
       sessionId: token,
       cookies: finalCookies,
       expiresAt: new Date(expiresAt),
-      credentials: { username, password, districtBaseUrl: baseUrl }
+      credentials: { username, password, districtBaseUrl: normalizedBaseUrl }
     };
     
     return { session, error: null };
@@ -436,39 +456,61 @@ function parseAssignmentsFromClass($: cheerio.CheerioAPI, classElement: any): HA
   const assignments: HACAssignment[] = [];
   const $class = $(classElement);
   
-  const assignmentTable = $class.find('table.sg-asp-table');
+  const assignmentTable = $class.find('table.sg-asp-table').first();
   if (!assignmentTable.length) return assignments;
   
+  const headers = assignmentTable.find('tr.sg-asp-table-header-row').first()
+    .find('th, td')
+    .toArray()
+    .map((cell) => $(cell).text().trim().toLowerCase().replace(/\s+/g, ' '));
+  const findColumn = (labels: string[], fallback: number) => {
+    const index = headers.findIndex((header) =>
+      labels.some((label) => header === label || header.startsWith(`${label} `))
+    );
+    return index >= 0 ? index : fallback;
+  };
+  const columns = {
+    dateDue: findColumn(['due date', 'date due'], 0),
+    dateAssigned: findColumn(['date assigned', 'assigned date'], 1),
+    name: findColumn(['assignment', 'description', 'name'], 2),
+    category: findColumn(['category'], 3),
+    score: findColumn(['score', 'earned points'], 4),
+    totalPoints: findColumn(['total points', 'possible points'], 5),
+    weight: findColumn(['weight'], 6),
+    percentage: findColumn(['percentage', 'percent'], 9),
+  };
+
   assignmentTable.find('tr.sg-asp-table-data-row').each((_, row) => {
     const cells = $(row).find('td');
     if (cells.length < 4) return;
+    const cellText = (index: number, fallback = '') =>
+      index < cells.length ? $(cells[index]).text().trim() : fallback;
     
-    const dateDue = $(cells[0]).text().trim();
-    const dateAssigned = $(cells[1]).text().trim();
-    const name = $(cells[2]).text().trim();
-    const category = $(cells[3]).text().trim();
-    const scoreRaw = cells.length > 4 ? $(cells[4]).text().trim() : 'N/A';
-    const totalPointsRaw = cells.length > 5 ? $(cells[5]).text().trim() : '';
-    const weightRaw = cells.length > 6 ? $(cells[6]).text().trim() : '';
+    const dateDue = cellText(columns.dateDue);
+    const dateAssigned = cellText(columns.dateAssigned);
+    const name = cellText(columns.name);
+    const category = cellText(columns.category);
+    const scoreRaw = cellText(columns.score, 'N/A');
+    const totalPointsRaw = cellText(columns.totalPoints);
+    const weightRaw = cellText(columns.weight);
+    const percentageRaw = cellText(columns.percentage);
     
-    // Parse numeric values
     const earnedPoints = safeParseFloat(scoreRaw);
-    
+    const scoreFraction = scoreRaw.match(/(-?\d+(?:\.\d+)?)\s*\/\s*(-?\d+(?:\.\d+)?)/);
     let totalPoints = safeParseFloat(totalPointsRaw);
-    if (totalPoints === null || totalPoints === 0) {
-      totalPoints = 100; // Default to 100 if not specified
+    if (totalPoints === null && scoreFraction) {
+      totalPoints = Number(scoreFraction[2]);
     }
+    if (totalPoints === 0) totalPoints = null;
+    if (totalPoints === null && scoreRaw.includes('%')) totalPoints = 100;
     
-    let weight = safeParseFloat(weightRaw);
-    if (weight === null) {
-      weight = 1.0; // Default weight
-    }
-    
-    // Calculate percentage
-    let percentage: number | null = null;
-    if (earnedPoints !== null && totalPoints > 0) {
-      percentage = Math.round((earnedPoints / totalPoints) * 10000) / 100;
-    }
+    const weight = safeParseFloat(weightRaw) ?? 1;
+    const displayedPercentage = safeParseFloat(percentageRaw.replace('%', ''));
+    const percentage = displayedPercentage ?? (
+      earnedPoints !== null && totalPoints !== null && totalPoints > 0
+        ? Math.round((earnedPoints / totalPoints) * 10000) / 100
+        : null
+    );
     
     assignments.push({
       dateDue,
@@ -544,13 +586,17 @@ function findCycleDropdown($: cheerio.CheerioAPI): {
     dropdown.find('option').each((_, optEl) => {
       const text = $(optEl).text().trim();
       const value = $(optEl).attr('value') || '';
-      if (text && value) {
+      const isAllRuns = value.toUpperCase() === 'ALL' || /\ball\s+runs?\b/i.test(text);
+      if (text && value && !isAllRuns) {
         availableCycles.push({ text, value });
         if ($(optEl).attr('selected') !== undefined) {
           currentCycle = value;
         }
       }
     });
+  }
+  if (!currentCycle && availableCycles.length > 0) {
+    currentCycle = availableCycles[0].value;
   }
   
   return { dropdown, availableCycles, currentCycle };
@@ -612,20 +658,19 @@ async function switchCycleViaPostBack(
   
   // 3. Update cycle dropdown to requested value
   const dropdownName = cycleDropdown.attr('name');
-  if (dropdownName) {
-    postData.set(dropdownName, targetCycleValue);
+  if (!dropdownName) {
+    console.error('[HAC] Cycle dropdown has no name');
+    return null;
   }
+  postData.set(dropdownName, targetCycleValue);
   
   // 4. Determine the refresh button's __EVENTTARGET
   let refreshTarget = 'ctl00$plnMain$btnRefreshView'; // Default
-  
   const refreshBtn = $('button#plnMain_btnRefreshView, input#plnMain_btnRefreshView');
-  if (refreshBtn.length) {
-    const onclick = refreshBtn.attr('onclick') || '';
-    const match = onclick.match(/__doPostBack\('([^']*)'/);
-    if (match) {
-      refreshTarget = match[1];
-    }
+  const postBackSource = refreshBtn.attr('onclick') || cycleDropdown.attr('onchange') || '';
+  const match = postBackSource.match(/__doPostBack\(['"]([^'"]+)['"]/);
+  if (match) {
+    refreshTarget = match[1];
   }
   
   console.log('[HAC] PostBack cycle switch → target:', refreshTarget, 'cycle:', targetCycleValue);
@@ -645,14 +690,22 @@ async function switchCycleViaPostBack(
       body: postData.toString(),
     });
     
+    if (response.status === 401 || response.status === 403) {
+      throw new HACSessionExpiredError();
+    }
     if (!response.ok) {
       console.error('[HAC] PostBack failed:', response.status);
       return null;
     }
     
     const html = await response.text();
-    return cheerio.load(html);
+    const page = cheerio.load(html);
+    if (isLoginPage(page, html)) {
+      throw new HACSessionExpiredError();
+    }
+    return page;
   } catch (error) {
+    if (error instanceof HACSessionExpiredError) throw error;
     console.error('[HAC] PostBack error:', error);
     return null;
   }
@@ -689,10 +742,10 @@ export async function fetchGrades(sessionId: string, cycleValue?: string | numbe
       redirect: 'manual',
     });
     
-    // Redirect = session expired
-    if (response.status >= 300 && response.status < 400) {
-      console.error('[HAC] Session invalid - redirected');
-      return null;
+    // Redirects and login pages mean the HAC cookie has expired.
+    if (response.status >= 300 && response.status < 400 || response.status === 401 || response.status === 403) {
+      console.error('[HAC] Session invalid - redirected or unauthorized');
+      throw new HACSessionExpiredError();
     }
     
     if (!response.ok) {
@@ -705,7 +758,7 @@ export async function fetchGrades(sessionId: string, cycleValue?: string | numbe
     
     if (isLoginPage($, html)) {
       console.error('[HAC] Session expired - on login page');
-      return null;
+      throw new HACSessionExpiredError();
     }
     
     // 2. Discover cycle dropdown and available cycles
@@ -754,7 +807,7 @@ export async function fetchGrades(sessionId: string, cycleValue?: string | numbe
       
       // Extract course code from name: "1210ADV - 1 • English II Advanced"
       let courseCode = String(idx);
-      const courseCodeMatch = courseName.match(/^([A-Z0-9]+(?:-\s*\d+)?)/);
+      const courseCodeMatch = courseName.match(/^([A-Z0-9]+(?:\s*-\s*\d+)?)/);
       if (courseCodeMatch) {
         courseCode = courseCodeMatch[1].trim();
       }
@@ -822,6 +875,7 @@ export async function fetchGrades(sessionId: string, cycleValue?: string | numbe
       currentCycle,
     };
   } catch (error) {
+    if (error instanceof HACSessionExpiredError) throw error;
     console.error('[HAC] Error fetching grades:', error);
     return null;
   }
@@ -835,14 +889,16 @@ export async function fetchGrades(sessionId: string, cycleValue?: string | numbe
  * but consumers should prefer using the inline assignments from fetchGrades().
  */
 export async function fetchAssignmentsForCourse(
-  sessionId: string, 
-  courseIndex: number
+  sessionId: string,
+  courseId: string
 ): Promise<HACAssignment[] | null> {
   const gradesData = await fetchGrades(sessionId);
   if (!gradesData) return null;
   
-  const course = gradesData.grades[courseIndex];
-  return course?.assignments || [];
+  const course = gradesData.grades.find((grade) =>
+    grade.courseId === courseId || grade.name === courseId
+  );
+  return course ? course.assignments : null;
 }
 
 // ─── Report Card ────────────────────────────────────────────────────────────────
@@ -865,6 +921,9 @@ export async function fetchReportCard(sessionId: string): Promise<HACReportCard 
       },
     });
     
+    if (response.status === 401 || response.status === 403) {
+      throw new HACSessionExpiredError();
+    }
     if (!response.ok) {
       console.error('[HAC] Failed to fetch report card:', response.status);
       return null;
@@ -872,33 +931,61 @@ export async function fetchReportCard(sessionId: string): Promise<HACReportCard 
     
     let html = await response.text();
     let $ = cheerio.load(html);
+    if (isLoginPage($, html)) {
+      throw new HACSessionExpiredError();
+    }
     
-    // Check if we need to select the latest report card run
+    // Select the latest report-card run with the same ASP.NET postback used by HAC.
     const dropdown = $('#plnMain_ddlRCRuns');
-    if (dropdown.length) {
-      const options = dropdown.find('option');
-      if (options.length > 0) {
-        const lastOption = options.last();
-        const lastValue = lastOption.attr('value');
-        const selectedOption = dropdown.find('option[selected]');
-        const currentValue = selectedOption.length ? selectedOption.attr('value') : undefined;
+    const runOptions = dropdown.find('option').filter((_, el) => {
+      const value = $(el).attr('value') || '';
+      return value && value.toUpperCase() !== 'ALL';
+    });
+    const lastOption = runOptions.last();
+    const lastValue = lastOption.length ? lastOption.attr('value') : undefined;
+    const selectedOption = dropdown.find('option[selected]').first();
+    const currentValue = selectedOption.length ? selectedOption.attr('value') : undefined;
+
+    if (lastValue && currentValue !== lastValue) {
+      const form = $('form').first();
+      const dropdownName = dropdown.attr('name');
+      if (form.length && dropdownName) {
+        const postData = new URLSearchParams();
+        form.find('input[type="hidden"]').each((_, el) => {
+          const name = $(el).attr('name');
+          if (name) postData.append(name, $(el).attr('value') || '');
+        });
+        form.find('select').each((_, el) => {
+          const name = $(el).attr('name');
+          if (!name) return;
+          const selected = $(el).find('option[selected]').first();
+          const first = $(el).find('option').first();
+          postData.set(name, selected.length ? selected.attr('value') || '' : first.attr('value') || '');
+        });
+        postData.set(dropdownName, lastValue);
+        postData.set('__EVENTTARGET', 'ctl00$plnMain$ddlRCRuns');
+        postData.set('__EVENTARGUMENT', '');
         
-        // If not on the latest run, fetch it
-        if (currentValue !== lastValue && lastValue) {
-          console.log('[HAC] Switching to latest report card run:', lastValue);
-          const parts = lastValue.split('-');
-          const rcrun = parts.length >= 2 ? parts[0] : lastValue;
-          
-          const latestResponse = await fetchWithRetry(`${reportCardUrl}?RCRun=${rcrun}`, {
-            headers: {
-              'Cookie': session.cookies,
-              'User-Agent': USER_AGENT,
-            },
-          });
-          
-          if (latestResponse.ok) {
-            html = await latestResponse.text();
-            $ = cheerio.load(html);
+        const formAction = form.attr('action');
+        const postUrl = formAction ? new URL(formAction, reportCardUrl).toString() : reportCardUrl;
+        const latestResponse = await fetchWithRetry(postUrl, {
+          method: 'POST',
+          headers: {
+            'Cookie': session.cookies,
+            'User-Agent': USER_AGENT,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: postData.toString(),
+        });
+
+        if (latestResponse.status === 401 || latestResponse.status === 403) {
+          throw new HACSessionExpiredError();
+        }
+        if (latestResponse.ok) {
+          html = await latestResponse.text();
+          $ = cheerio.load(html);
+          if (isLoginPage($, html)) {
+            throw new HACSessionExpiredError();
           }
         }
       }
@@ -920,11 +1007,13 @@ export async function fetchReportCard(sessionId: string): Promise<HACReportCard 
       headers.push($(el).text().trim());
     });
     
-    // Map cycle names (C1, C2, etc.) to column indices
+    // Accept HAC variants such as C1, Cycle 1, or a numeric column label.
     const cycleIndices: Record<string, number> = {};
     headers.forEach((header, idx) => {
-      if (/^C\d+$/.test(header)) {
-        cycleIndices[header] = idx;
+      const normalizedHeader = header.replace(/\s+/g, ' ').trim();
+      const cycleMatch = normalizedHeader.match(/^C(?:YCLE)?\s*(\d+)\b/i) || normalizedHeader.match(/^\s*(\d+)\s*$/);
+      if (cycleMatch) {
+        cycleIndices[`C${cycleMatch[1]}`] = idx;
       }
     });
     
@@ -951,8 +1040,9 @@ export async function fetchReportCard(sessionId: string): Promise<HACReportCard 
       for (const [cycleName, idx] of Object.entries(cycleIndices)) {
         if (idx < cells.length) {
           const gradeText = $(cells[idx]).text().trim();
-          if (gradeText && /^\d+$/.test(gradeText)) {
-            const grade = parseInt(gradeText, 10);
+          const normalizedGrade = gradeText.replace(/[%,]/g, '').trim();
+          const grade = Number(normalizedGrade);
+          if (normalizedGrade && Number.isFinite(grade)) {
             const gpa = Math.round(calculateGpaForGrade(grade, courseName) * 100) / 100;
             
             cyclesData[cycleName].push({
@@ -1002,6 +1092,7 @@ export async function fetchReportCard(sessionId: string): Promise<HACReportCard 
     
     return { cycles, overallGpa };
   } catch (error) {
+    if (error instanceof HACSessionExpiredError) throw error;
     console.error('[HAC] Error fetching report card:', error);
     return null;
   }

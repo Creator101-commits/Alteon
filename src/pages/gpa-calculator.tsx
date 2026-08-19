@@ -21,6 +21,21 @@ export default function GPACalculator() {
   const gpa = useGPACalculator();
 
   // ─── Not connected state ──────────────────────────────────────────────────
+  if (gpa.isRestoring) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="max-w-4xl mx-auto py-8 px-6">
+          <Card>
+            <CardContent className="py-12 text-center" role="status" aria-live="polite">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-muted-foreground" aria-hidden="true" />
+              <p className="text-muted-foreground">Restoring your HAC connection...</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   if (!gpa.isConnected) {
     return (
       <div className="min-h-screen bg-background">

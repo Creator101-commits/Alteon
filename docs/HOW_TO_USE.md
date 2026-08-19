@@ -157,7 +157,9 @@ This creates optimized build in `dist/` directory.
 **Solution**:
 1. Verify Firebase config in .env
 2. Check Firebase Console → Authentication → Sign-in methods → Google is enabled
-3. Ensure authorized domains include localhost:5173
+3. Add `localhost` (without `:5173`) under Firebase Console → Authentication → Settings → Authorized domains
+4. For Google sign-in, add `http://localhost:5173` under Google Cloud → APIs & Services → Credentials → OAuth client → Authorized JavaScript origins
+5. Restart Vite after changing `.env` values
 
 ### Missing Tables or "Table does not exist"
 

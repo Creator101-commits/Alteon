@@ -69,6 +69,7 @@ interface HACContextType {
   // State
   isConnected: boolean;
   isLoading: boolean;
+  isRestoring: boolean;
   sessionId: string | null;
   error: string | null;
   gradesData: HACGradesData | null;
@@ -135,6 +136,7 @@ export const HACProvider = ({ children }: HACProviderProps) => {
   
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(() => Boolean(user?.uid));
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [gradesData, setGradesData] = useState<HACGradesData | null>(null);
@@ -148,6 +150,7 @@ export const HACProvider = ({ children }: HACProviderProps) => {
   const prefetchingRef = useRef(false);
   // Ref to store credentials for auto-retry
   const credentialsRef = useRef<HACCredentials | null>(null);
+  const backgroundTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ─── Auth-aware fetch wrapper ───────────────────────────────────────────────
   
@@ -170,26 +173,27 @@ export const HACProvider = ({ children }: HACProviderProps) => {
     if (response.status === 401 && credentialsRef.current) {
       console.log('[HACContext] 401 received, attempting re-login...');
       
-      // Try re-login
-      const loginResponse = await fetch(getApiUrl('/api/hac/login'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(credentialsRef.current),
-      });
-      
-      if (loginResponse.ok) {
-        const loginData = await safeJsonParse(loginResponse);
-        if (loginData.success && loginData.sessionId) {
-          // Update session
-          setSessionId(loginData.sessionId);
-          
-          // Retry original request with new session
-          const retryHeaders = {
-            ...((options.headers as Record<string, string>) || {}),
-            'X-HAC-Session': loginData.sessionId,
-          };
-          return fetch(url, { ...options, headers: retryHeaders });
+      try {
+        const loginResponse = await fetch(getApiUrl('/api/hac/login'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(credentialsRef.current),
+        });
+
+        if (loginResponse.ok) {
+          const loginData = await safeJsonParse(loginResponse);
+          if (loginData.success && loginData.sessionId) {
+            setSessionId(loginData.sessionId);
+
+            const retryHeaders = {
+              ...((options.headers as Record<string, string>) || {}),
+              'X-HAC-Session': loginData.sessionId,
+            };
+            return fetch(url, { ...options, headers: retryHeaders });
+          }
         }
+      } catch (error) {
+        console.warn('[HACContext] Re-login failed:', error);
       }
       
       // Re-login failed — mark disconnected
@@ -203,8 +207,13 @@ export const HACProvider = ({ children }: HACProviderProps) => {
 
   // ─── Lifecycle ──────────────────────────────────────────────────────────────
 
-  // Load cached credentials on mount
+  // Keep the disconnected state hidden while cached HAC credentials restore.
   useEffect(() => {
+    if (backgroundTimerRef.current) {
+      clearTimeout(backgroundTimerRef.current);
+      backgroundTimerRef.current = null;
+    }
+    setIsRestoring(Boolean(user?.uid));
     if (!user?.uid) {
       setIsConnected(false);
       setSessionId(null);
@@ -214,26 +223,44 @@ export const HACProvider = ({ children }: HACProviderProps) => {
       setAvailableCycles([]);
       setCycleGradesCache(new Map());
       credentialsRef.current = null;
+      setIsRestoring(false);
       return;
     }
 
+    let cancelled = false;
     const loadCachedCredentials = async () => {
       try {
         const cachedCreds = localStorage.getItem(getStorageKey(user.uid, 'credentials'));
         if (cachedCreds) {
-          // Decrypt credentials from localStorage
           const decrypted = await decryptLocalData(cachedCreds, user.uid);
-          const parsed = JSON.parse(decrypted);
-          setCachedUsername(parsed.username);
-          credentialsRef.current = parsed;
-          autoLogin(parsed);
+          const parsed = JSON.parse(decrypted) as HACCredentials;
+          if (!cancelled) {
+            setCachedUsername(parsed.username);
+            credentialsRef.current = parsed;
+            await autoLogin(parsed);
+          }
         }
       } catch (err) {
         console.warn('Failed to load cached HAC credentials:', err);
+      } finally {
+        if (!cancelled) {
+          setIsRestoring(false);
+        }
       }
     };
-    loadCachedCredentials();
+    void loadCachedCredentials();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user?.uid]);
+
+  useEffect(() => () => {
+    if (backgroundTimerRef.current) {
+      clearTimeout(backgroundTimerRef.current);
+      backgroundTimerRef.current = null;
+    }
+  }, []);
 
   // ─── Auto-login ─────────────────────────────────────────────────────────────
 
@@ -256,8 +283,13 @@ export const HACProvider = ({ children }: HACProviderProps) => {
         setCachedUsername(credentials.username);
         credentialsRef.current = credentials;
         
-        // Fetch grades once, then use that response for background work.
         const initialGrades = await fetchGradesInternal(data.sessionId);
+        if (!initialGrades) {
+          setIsConnected(false);
+          setSessionId(null);
+          setError((current) => current || 'Connected to HAC, but grades could not be loaded.');
+          return;
+        }
         startBackgroundTasks(data.sessionId, initialGrades);
       } else {
         if (user?.uid) {
@@ -269,6 +301,11 @@ export const HACProvider = ({ children }: HACProviderProps) => {
       }
     } catch (err) {
       console.warn('HAC auto-login failed:', err);
+      setIsConnected(false);
+      setSessionId(null);
+      setCachedUsername(null);
+      credentialsRef.current = null;
+      setError(err instanceof Error ? err.message : 'Failed to reconnect to HAC');
     } finally {
       setIsLoading(false);
     }
@@ -314,6 +351,12 @@ export const HACProvider = ({ children }: HACProviderProps) => {
       
       // Fetch grades once, then use that response for background work.
       const initialGrades = await fetchGradesInternal(data.sessionId);
+      if (!initialGrades) {
+        setIsConnected(false);
+        setSessionId(null);
+        setError((current) => current || 'Connected to HAC, but grades could not be loaded.');
+        return false;
+      }
       startBackgroundTasks(data.sessionId, initialGrades);
       
       return true;
@@ -326,6 +369,10 @@ export const HACProvider = ({ children }: HACProviderProps) => {
   }, [user?.uid]);
 
   const disconnect = useCallback(() => {
+    if (backgroundTimerRef.current) {
+      clearTimeout(backgroundTimerRef.current);
+      backgroundTimerRef.current = null;
+    }
     if (sessionId) {
       fetch(getApiUrl('/api/hac/login'), {
         method: 'DELETE',
@@ -393,6 +440,7 @@ export const HACProvider = ({ children }: HACProviderProps) => {
       return data;
     } catch (err) {
       console.error('Failed to fetch grades:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch grades from HAC');
       return null;
     }
   };
@@ -409,8 +457,12 @@ export const HACProvider = ({ children }: HACProviderProps) => {
     fetchReportCardInternal(sid).catch(() => {});
 
     // Start prefetching other cycles after a short delay.
-    setTimeout(() => {
-      startPrefetching(sid, initialGrades);
+    if (backgroundTimerRef.current) {
+      clearTimeout(backgroundTimerRef.current);
+    }
+    backgroundTimerRef.current = setTimeout(() => {
+      backgroundTimerRef.current = null;
+      void startPrefetching(sid, initialGrades);
     }, 500);
   };
 
@@ -492,7 +544,9 @@ export const HACProvider = ({ children }: HACProviderProps) => {
       const refreshedGrades = await fetchGradesInternal(sessionId);
       
       // Re-prefetch in background using the refreshed response.
-      startBackgroundTasks(sessionId, refreshedGrades);
+      if (refreshedGrades) {
+        startBackgroundTasks(sessionId, refreshedGrades);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -568,6 +622,7 @@ export const HACProvider = ({ children }: HACProviderProps) => {
   const value: HACContextType = {
     isConnected,
     isLoading,
+    isRestoring,
     sessionId,
     error,
     gradesData,

@@ -72,7 +72,7 @@ export default function Landing() {
             </h1>
             
             <p className="text-lg md:text-xl text-muted-foreground max-w-xl mx-auto leading-relaxed">
-              AI-powered productivity tools for academic excellence
+              Productivity tools for academic excellence
             </p>
             
             <button 

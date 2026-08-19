@@ -32,6 +32,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     res.json(reportCard);
   } catch (error: any) {
+    if (error instanceof hacScraper.HACSessionExpiredError) {
+      return res.status(401).json({ error: 'HAC session expired. Please log in again.' });
+    }
     console.error('HAC report card error:', error);
     res.status(500).json({ 
       error: error.message || 'Failed to fetch report card' 

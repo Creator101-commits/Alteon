@@ -9,7 +9,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const sessionId = req.headers['x-hac-session'] as string;
     const { courseId } = req.query;
-    const courseIndex = parseInt(courseId as string, 10);
+    const requestedCourseId = Array.isArray(courseId) ? courseId[0] : courseId;
     
     if (!sessionId) {
       return res.status(401).json({ 
@@ -17,7 +17,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
     
-    if (isNaN(courseIndex)) {
+    if (typeof requestedCourseId !== 'string' || !requestedCourseId.trim()) {
       return res.status(400).json({ error: 'Invalid course ID' });
     }
     
@@ -28,7 +28,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
     
-    const assignments = await hacScraper.fetchAssignmentsForCourse(sessionId, courseIndex);
+    const assignments = await hacScraper.fetchAssignmentsForCourse(sessionId, requestedCourseId);
     
     if (!assignments) {
       return res.status(500).json({ 
@@ -38,6 +38,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     
     res.json({ assignments });
   } catch (error: any) {
+    if (error instanceof hacScraper.HACSessionExpiredError) {
+      return res.status(401).json({ error: 'HAC session expired. Please log in again.' });
+    }
     console.error('HAC assignments error:', error);
     res.status(500).json({ 
       error: error.message || 'Failed to fetch assignments' 

@@ -1,5 +1,10 @@
-<h1 align="center">Alteon</h1>
-<p align="center"><strong>AI-powered student productivity for notes, assignments, scheduling, and study workflows in one academic workspace.</strong></p>
+<p align="center">
+  <img src="./images/alteon.png" alt="Alteon dashboard" />
+</p>
+
+# Alteon
+
+> AI-powered student productivity for notes, assignments, scheduling, and study workflows.
 
 <p align="center">
 	<a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg?style=flat-square" alt="License: MIT" /></a>
@@ -7,257 +12,99 @@
 	<a href="https://supabase.com/"><img src="https://img.shields.io/badge/database-Supabase-3ECF8E.svg?style=flat-square" alt="Database: Supabase PostgreSQL" /></a>
 </p>
 
-<p align="center">
-	<img src="images/alteon.png" alt="Alteon Dashboard" />
-</p>
+Alteon brings notes, assignments, scheduling, and study tools into one academic workspace. It combines a React frontend with Vercel API routes, Supabase data services, Firebase Authentication, Groq AI, and Google integrations.
 
-Alteon is an all-in-one student productivity platform for planning, note-taking, assignments, and study workflows.
+## Table of Contents
 
-Architecture used:
-- Frontend: React + Vite on Vercel
-- Backend: Vercel serverless API routes under /api/*
-- Data/Auth: Supabase PostgreSQL + Firebase Authentication
-- Integrations: Groq AI and Google Calendar/Classroom APIs
+- [Alteon](#alteon)
+- [Usage](#usage)
+- [Development](#development)
+- [Contributing](#contributing)
+- [Release History](#release-history)
+- [License](#license)
+- [Meta](#meta)
 
-Key features:
-- AI-assisted notes with diff-style accept/reject edits
-- Unified calendar + assignment tracking and sync
-- Study tools (flashcards, Pomodoro, mood tracking)
-- Dashboard workflows for daily planning and progress
+## Usage
 
-## Installation
+[(Back to top)](#table-of-contents)
 
-### Prerequisites
-- Node.js 18+
-- npm 8+
-- Git
+Sign in, create your classes and assignments, and use the dashboard to organize your academic work.
 
-### 1. Clone
+### Notes
+
+Write and organize rich-text notes, then use the AI assistant for summaries, editing, outlining, and reviewable changes.
+
+### Planning
+
+Track assignment priorities and due dates, manage daily tasks, and sync supported events with Google Calendar.
+
+### Study tools
+
+Use flashcards, Pomodoro sessions, mood tracking, AI chat, and study summaries to support focused work.
+
+## Development
+
+[(Back to top)](#table-of-contents)
+
+Requirements: Node.js 18+, npm 8+, and Git.
+
 ```sh
-git clone https://github.com/Creator101-commits/Alteon.git
-cd Alteon
-```
-
-### 2. Install dependencies
-```sh
+git clone https://github.com/Creator101-commits/alteon.git
+cd alteon
 npm install
+cp .env.example .env
 ```
 
-### 3. Create environment file
-Create a .env file in the repository root (see .env.example):
+Fill in `.env` using `.env.example` as the source of truth, then run the development server:
 
-```env
-# Supabase
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-DATABASE_URL=postgresql://postgres:[PASSWORD]@db.your-project.supabase.co:5432/postgres
-
-# Firebase
-VITE_FIREBASE_API_KEY=your_firebase_api_key
-VITE_FIREBASE_PROJECT_ID=your_firebase_project_id
-VITE_FIREBASE_APP_ID=your_firebase_app_id
-
-# Groq (server-side only)
-GROQ_API_KEY=your_groq_api_key
-
-# Google APIs
-VITE_GOOGLE_CLIENT_ID=your_google_client_id
-VITE_GOOGLE_API_KEY=your_google_api_key
-```
-
-### 4. Start development
 ```sh
 npm run dev
 ```
 
-Optional Vercel-style local API runtime:
+The app runs at <http://localhost:5173>.
+
+Useful commands:
+
 ```sh
-vercel dev
+npm run check     # Type-check the project
+npm test          # Run tests
+npm run lint      # Run ESLint
+npm run build     # Create a production build
 ```
 
-## Usage example
-
-### Daily student workflow
-1. Sign in with Firebase authentication.
-2. Connect Google Calendar and import events.
-3. Create classes and assignments with due dates.
-4. Draft notes with the rich editor and AI assistant.
-5. Use dashboard + calendar to plan sessions.
-6. Track progress with productivity tools.
-
-### AI note workflow
-1. Open a note and write your draft.
-2. Launch AI assistant in the editor.
-3. Ask for editing, expansion, summaries, or structure.
-4. Review proposed diff-style changes.
-5. Accept or reject changes before applying.
-
-For detailed walkthroughs, see [docs/HOW_TO_USE.md](docs/HOW_TO_USE.md).
-
-## Development setup
-
-### Commands
-```sh
-npm run dev      # Start Vite dev server (default port 5173)
-npm run build    # Production build
-npm run start    # Start production server
-npm run check    # Type checking
-npm test         # Unit, application smoke, and performance tests
-npm run check:build # Verify production bundle performance budgets after building
-npm run db:push  # Push database schema changes
-```
-
-### Project structure
-```text
-Alteon/
-├── src/                   # React app (components, pages, contexts, hooks)
-├── api/                   # Vercel serverless API routes (/api/*)
-├── lib/                   # Shared libraries (HAC scraping, utilities)
-├── shared/                # Shared schema definitions
-├── docs/                  # Documentation
-├── scripts/               # Tooling scripts
-└── images/, sounds/, etc. # Static assets
-```
-
-### Database setup (Supabase + Drizzle)
-1. Create a Supabase project.
-2. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.
-3. Set DATABASE_URL from Supabase Database Settings.
-4. Run `npm run db:push`.
-
-## System architecture
-
-### Core stack
-- Frontend: React 18, TypeScript, Vite, Tailwind CSS, Wouter
-- UI/UX: Radix UI, Framer Motion, Tiptap
-- Backend: Vercel serverless API routes under /api/*
-- Data: Supabase PostgreSQL + Supabase Storage
-- Auth: Firebase Authentication (Google SSO)
-- AI: Groq models for chat, writing help, and summarization
-
-### Data flow
-1. User interacts with React frontend.
-2. Firebase handles authentication and session identity.
-3. Frontend calls /api/* routes and trusted Supabase operations.
-4. Serverless functions connect to Google APIs, HAC services, and AI providers.
-5. Supabase stores notes, assignments, classes, and related entities.
-6. React Query handles caching, optimistic updates, and invalidation.
-
-### Security and reliability
-- Firebase-authenticated user identity per request.
-- Supabase Row Level Security and managed PostgreSQL backups.
-- Serverless deployment for scale and low ops overhead.
-- Cloudflare + Vercel edge network for performance and protection.
-
-## Feature highlights
-
-### Smart note-taking
-- Rich text editor with advanced formatting
-- Context-aware AI writing assistant
-- Diff-style AI edit review (accept/reject)
-- Auto-save and class/category organization
-- Search, filtering, pinning, and print support
-
-### Calendar and assignments
-- Unified calendar view for events and deadlines
-- Google Calendar sync (manual + auto sync)
-- Assignment priority, status, and due-date tracking
-- Calendar-linked assignment timeline
-
-### Study and productivity tools
-- Flashcards with spaced repetition
-- Pomodoro timer with session tracking
-- Mood tracking and journaling
-
-### AI assistance
-- Multi-purpose study chat
-- Summarization for text, PDF, and video workflows
-- Quick prompts for outlining, editing, and expansion
-
-## Configuration
-
-### Google Calendar integration
-1. Enable Google Calendar API in Google Cloud Console.
-2. Create OAuth 2.0 credentials.
-3. Add authorized redirect URIs.
-4. Update Google environment variables.
-
-### AI services
-1. Create a Groq API key and set GROQ_API_KEY.
-2. Configure Firebase project credentials.
-3. Enable required Google APIs (Calendar/Classroom as needed).
-
-## Release History
-
-### Recent updates
-- AI Writing Assistant integrated with diff-style accept/reject workflow
-- Cleaner AI text insertion (markdown symbol cleanup)
-- Light mode consistency improvements across major components
-- Google Calendar auto-sync improvements
-- Expanded loading states and error handling
-- Mobile responsiveness and dashboard usability improvements
-
-## Meta
-
-- Project: Alteon
-- Repository: https://github.com/Creator101-commits/Alteon
-- License: MIT
-- Main documentation: docs/HOW_TO_USE.md
-
-Distributed under the MIT License. See [LICENSE](LICENSE) for details.
+If you change the database schema, review the changes before running `npm run db:push`. Never commit `.env` or expose server-only keys with a `VITE_` prefix.
 
 ## Contributing
 
-1. Fork the repository.
-2. Create your feature branch (example: feature/amazing-feature).
-3. Commit your changes with a clear message.
-4. Push your branch.
-5. Open a Pull Request.
+[(Back to top)](#table-of-contents)
 
-### Development guidelines
-- Follow TypeScript best practices.
-- Keep API input validation strict.
-- Add tests for meaningful logic changes.
-- Update documentation when behavior changes.
+Contributions are welcome. For project-specific guidelines, see [`CONTRIBUTING.md`](./CONTRIBUTING.md).
 
-## Support
+1. Fork it (<https://github.com/Creator101-commits/alteon/fork>)
+2. Create a feature branch (`git checkout -b feature/your-change`)
+3. Commit your changes (`git commit -m 'feat: describe your change'`)
+4. Push to the branch (`git push origin feature/your-change`)
+5. Open a pull request
 
-- Documentation: [docs](docs/)
-- Issues: [GitHub Issues](https://github.com/Creator101-commits/Alteon/issues)
-- Email: support@alteon.com
+Please make sure tests pass and the code is formatted before opening a pull request.
 
-## Roadmap
+## Release History
 
-### Completed
-- AI writing assistant with editable diff workflow
-- Context-aware AI suggestions in notes
-- Google Calendar synchronization
-- Light mode optimization and theme consistency
-- Auto-save improvements and network status feedback
+[(Back to top)](#table-of-contents)
 
-### Upcoming
-- Mobile app (React Native)
-- Offline support with local sync strategy
-- Advanced AI tutoring and study planning
-- Collaborative study features
-- LMS integrations (Canvas, Moodle, Blackboard)
+See the [GitHub releases](https://github.com/Creator101-commits/alteon/releases) page for release history.
 
-## Acknowledgments
+## License
 
-- React
-- Radix UI
-- Tailwind CSS
-- Drizzle ORM
-- Supabase
-- Groq
+[(Back to top)](#table-of-contents)
 
----
+Distributed under the MIT License. See [`LICENSE`](./LICENSE) for more information.
 
-Alteon - Empowering students with AI-driven productivity tools.
+## Meta
 
-[license-badge]: https://img.shields.io/badge/license-MIT-green.svg?style=flat-square
-[license-url]: LICENSE
-[vite-badge]: https://img.shields.io/badge/frontend-React%20%2B%20Vite-646CFF.svg?style=flat-square
-[vite-url]: https://vitejs.dev/
-[supabase-badge]: https://img.shields.io/badge/database-Supabase-3ECF8E.svg?style=flat-square
-[supabase-url]: https://supabase.com/
+[(Back to top)](#table-of-contents)
+
+Project: Alteon
+Owner: [Creator101-commits](https://github.com/Creator101-commits)
+
+Project link: [https://github.com/Creator101-commits/alteon](https://github.com/Creator101-commits/alteon)

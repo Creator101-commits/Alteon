@@ -26,7 +26,8 @@ import {
 export function HACSettings() {
   const { 
     isConnected, 
-    isLoading, 
+    isLoading,
+    isRestoring,
     error, 
     connect, 
     disconnect, 
@@ -51,7 +52,7 @@ export function HACSettings() {
 
     const success = await connect({
       username: username.trim(),
-      password: password.trim(),
+      password,
     });
 
     if (success) {
@@ -68,6 +69,23 @@ export function HACSettings() {
   };
 
   const displayError = localError || error;
+
+  if (isRestoring) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Home Access Center</CardTitle>
+          <CardDescription>Restoring your saved connection</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground" role="status" aria-live="polite">
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            <span>Checking your HAC connection...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (isConnected) {
     return (
@@ -136,7 +154,7 @@ export function HACSettings() {
           </div>
 
           <p className="text-xs text-muted-foreground text-center">
-            Your credentials are stored locally and never sent to our servers.
+            Credentials are encrypted in local storage and used only for HAC requests.
           </p>
         </CardContent>
       </Card>
@@ -221,7 +239,7 @@ export function HACSettings() {
           </Button>
 
           <p className="text-xs text-muted-foreground text-center">
-            Your credentials are stored locally on your device and are only used to fetch your grades directly from HAC.
+            Credentials are encrypted in local storage and sent only to the HAC service through the app API.
           </p>
         </form>
       </CardContent>

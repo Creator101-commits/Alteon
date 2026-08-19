@@ -18,6 +18,7 @@ export function useGPACalculator() {
   const {
     isConnected,
     isLoading,
+    isRestoring,
     gradesData,
     reportCard,
     refreshGrades,
@@ -96,7 +97,7 @@ export function useGPACalculator() {
   }, [reportCard, gpaScale, excludedCoursesLoaded, cachedExcludedCourses]);
 
   useEffect(() => {
-    if (gradesData && courses.length === 0 && excludedCoursesLoaded) {
+    if (gradesData && excludedCoursesLoaded) {
       const current: CourseGPAEntry[] = gradesData.grades
         .filter((g: any) => g.numericGrade !== null)
         .map((course: any, idx: number) => {
@@ -119,7 +120,7 @@ export function useGPACalculator() {
         return [...prev, ...current.filter((c) => !existing.has(c.courseName + c.cycle))];
       });
     }
-  }, [gradesData, gpaScale]);
+  }, [gradesData, reportCard, gpaScale, excludedCoursesLoaded, cachedExcludedCourses]);
 
   // Recalculate when scale changes
   useEffect(() => {
@@ -230,6 +231,7 @@ export function useGPACalculator() {
     // HAC state
     isConnected,
     isLoading,
+    isRestoring,
     error,
     refreshGrades,
     fetchReportCard,
