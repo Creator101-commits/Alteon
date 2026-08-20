@@ -22,6 +22,8 @@ export interface SessionPayload {
   password: string;
   /** District base URL */
   baseUrl: string;
+  /** Firebase user ID authorized to use this session */
+  userId: string;
   /** When this token expires (epoch ms) */
   expiresAt: number;
 }

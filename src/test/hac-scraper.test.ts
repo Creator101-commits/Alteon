@@ -5,7 +5,9 @@ import {
   fetchGrades,
   fetchReportCard,
   getCourseLevel,
+  validateSession,
 } from '../../lib/hac/scraper';
+import { approvedHacOrigin, isForbiddenHacAddress } from '../../lib/hac/request';
 import { encryptSession } from '../../lib/hac/session-token';
 import { detectCourseLevel } from '@/pages/gpa-calculator/types';
 
@@ -14,7 +16,8 @@ const sessionToken = () =>
     cookies: 'seed=1',
     username: 'student',
     password: 'password',
-    baseUrl: 'https://example.test',
+    baseUrl: 'https://lis-hac.eschoolplus.powerschool.com',
+    userId: 'user-1',
     expiresAt: Date.now() + 60_000,
   });
 
@@ -145,12 +148,41 @@ describe('HAC scraper', () => {
       .mockResolvedValueOnce(response(200, '<title>Dashboard</title>'));
     vi.stubGlobal('fetch', fetchMock);
 
-    const result = await createSessionAndLogin('student', 'password');
+    const result = await createSessionAndLogin('student', 'password', 'user-1');
 
     expect(result.session).not.toBeNull();
     expect(fetchMock.mock.calls[1][1]?.headers).toMatchObject({
       Cookie: expect.stringContaining('ASP.NET_SessionId=session'),
     });
     expect(result.session?.cookies).toContain('AuthCookie=auth');
+  });
+});
+
+describe('HAC request policy', () => {
+  it('accepts only the server allowlisted origin without URL components', () => {
+    expect(approvedHacOrigin('https://lis-hac.eschoolplus.powerschool.com')).toBe(
+      'https://lis-hac.eschoolplus.powerschool.com',
+    );
+    for (const url of [
+      'https://evil.example',
+      'https://user:pass@lis-hac.eschoolplus.powerschool.com',
+      'https://lis-hac.eschoolplus.powerschool.com:8443',
+      'https://lis-hac.eschoolplus.powerschool.com/HomeAccess',
+      'https://lis-hac.eschoolplus.powerschool.com/?next=https://evil.example',
+    ]) {
+      expect(() => approvedHacOrigin(url)).toThrow();
+    }
+  });
+
+  it('rejects private, metadata, and reserved DNS answers', () => {
+    for (const address of ['127.0.0.1', '10.0.0.1', '169.254.169.254', '192.168.1.1', '::1', 'fd00::1']) {
+      expect(isForbiddenHacAddress(address)).toBe(true);
+    }
+    expect(isForbiddenHacAddress('8.8.8.8')).toBe(false);
+  });
+
+  it('binds encrypted HAC sessions to the authenticated user', async () => {
+    expect(await validateSession(sessionToken(), 'user-1')).toBe(true);
+    expect(await validateSession(sessionToken(), 'other-user')).toBe(false);
   });
 });

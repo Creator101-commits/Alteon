@@ -307,11 +307,9 @@ export const insertUserSchema = createInsertSchema(users).omit({ id: true, creat
 export const insertClassSchema = createInsertSchema(classes).omit({ id: true, createdAt: true });
 export const insertFolderSchema = createInsertSchema(folders).omit({ id: true, createdAt: true, updatedAt: true });
 
-// HAC (Home Access Center) schemas - not database tables, just validation schemas
 export const hacLoginSchema = z.object({
   username: z.string().min(1, "Username is required"),
   password: z.string().min(1, "Password is required"),
-  districtBaseUrl: z.string().url().optional(),
 });
 
 export const hacGpaCalculationSchema = z.object({

@@ -28,7 +28,7 @@ import {
   CourseLevel
 } from './types.js';
 import { encryptSession, decryptSession, SessionPayload } from './session-token.js';
-
+import { approvedHacOrigin, discardHacResponse, fetchHac, HACRequestError, readHacText } from './request.js';
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
 const SESSION_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 hours
@@ -108,46 +108,45 @@ async function fetchWithCookies(
   cookieJar: CookieJar, 
   options: RequestInit = {}
 ): Promise<{ response: Response; finalUrl: string }> {
-  const MAX_REDIRECTS = 10;
+  const MAX_REDIRECTS = 3;
   let currentUrl = url;
   let redirectCount = 0;
-  let response: Response;
-  
-  while (redirectCount < MAX_REDIRECTS) {
+
+  while (true) {
     const headers: Record<string, string> = {
       'User-Agent': USER_AGENT,
       ...(options.headers as Record<string, string> || {})
     };
-    
+
     const cookieString = cookieJar.toString();
     if (cookieString) {
       headers['Cookie'] = cookieString;
     }
-    
-    response = await fetch(currentUrl, {
+
+    const response = await fetchHac(currentUrl, {
       ...options,
       headers,
-      redirect: 'manual'
     });
-    
+
     cookieJar.addFromResponse(response);
-    
+
     const location = response.headers.get('location');
-    if (response.status >= 300 && response.status < 400 && location) {
-      currentUrl = new URL(location, currentUrl).toString();
-      redirectCount++;
-      
-      // After POST redirect, switch to GET (HTTP 303 semantics)
-      if (options.method === 'POST') {
-        options = { ...options, method: 'GET', body: undefined };
-      }
-      continue;
+    if (response.status < 300 || response.status >= 400 || !location) {
+      return { response, finalUrl: currentUrl };
     }
-    
-    break;
+
+    await discardHacResponse(response);
+    if (redirectCount++ >= MAX_REDIRECTS || (response.status !== 301 && response.status !== 302 && response.status !== 303)) {
+      throw new HACRequestError('HAC redirect was rejected');
+    }
+
+    const redirectUrl = new URL(location, currentUrl);
+    approvedHacOrigin(redirectUrl.origin);
+    currentUrl = redirectUrl.toString();
+    if (options.method === 'POST') {
+      options = { ...options, method: 'GET', body: undefined };
+    }
   }
-  
-  return { response: response!, finalUrl: currentUrl };
 }
 
 /**
@@ -160,28 +159,23 @@ async function fetchWithRetry(
   retries = RETRY_CONFIG.maxRetries
 ): Promise<Response> {
   let lastError: Error | null = null;
-  
+
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      const response = await fetch(url, options);
-      
-      // Don't retry on redirects (session expired) or client errors
-      if (response.status < 500) {
-        return response;
-      }
-      
-      // 5xx → retry
+      const response = await fetchHac(url, options);
+      if (response.status < 500) return response;
+
       if (attempt < retries) {
+        await discardHacResponse(response);
         const delay = RETRY_CONFIG.baseDelayMs * Math.pow(2, attempt);
         console.log(`[HAC] Server error ${response.status}, retrying in ${delay}ms (attempt ${attempt + 1}/${retries})`);
         await sleep(delay);
         continue;
       }
-      
+
       return response;
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
-      
       if (attempt < retries) {
         const delay = RETRY_CONFIG.baseDelayMs * Math.pow(2, attempt);
         console.log(`[HAC] Network error, retrying in ${delay}ms (attempt ${attempt + 1}/${retries}):`, lastError.message);
@@ -189,7 +183,7 @@ async function fetchWithRetry(
       }
     }
   }
-  
+
   throw lastError || new Error('Fetch failed after retries');
 }
 
@@ -204,9 +198,9 @@ function sleep(ms: number): Promise<void> {
  * The token is a stateless encrypted blob (no in-memory Map).
  * Returns null if the token is invalid or expired.
  */
-export function resolveSession(sessionToken: string): HACSession | null {
+export function resolveSession(sessionToken: string, userId?: string): HACSession | null {
   const payload = decryptSession(sessionToken);
-  if (!payload) {
+  if (!payload || (userId && payload.userId !== userId)) {
     console.error('[HAC] Invalid session token');
     return null;
   }
@@ -311,17 +305,13 @@ export function calculateGpaForGrade(gradePercent: number, courseName: string): 
  * Create a session and login to HAC.
  */
 export async function createSessionAndLogin(
-  username: string, 
+  username: string,
   password: string,
-  baseUrl: string = process.env.HAC_BASE_URL || process.env.VITE_HAC_BASE_URL || DEFAULT_HAC_BASE_URL
+  userId: string,
+  baseUrl = process.env.HAC_DEFAULT_ORIGIN || DEFAULT_HAC_BASE_URL
 ): Promise<{ session: HACSession | null; error: string | null }> {
   try {
-    const parsedBaseUrl = new URL(baseUrl);
-    if (parsedBaseUrl.protocol !== 'https:' && process.env.NODE_ENV === 'production') {
-      throw new Error('HAC district URL must use HTTPS in production');
-    }
-    const normalizedBaseUrl = parsedBaseUrl.toString().replace(/\/+$/, '');
-    console.log('[HAC] Attempting login to:', normalizedBaseUrl);
+    const normalizedBaseUrl = approvedHacOrigin(baseUrl);
     const loginUrl = `${normalizedBaseUrl}${HAC_ENDPOINTS.LOGIN}`;
     const cookieJar = new CookieJar();
     
@@ -331,11 +321,12 @@ export async function createSessionAndLogin(
     });
     
     if (!loginPageResponse.ok) {
+      await discardHacResponse(loginPageResponse);
       console.error('[HAC] Failed to access login page:', loginPageResponse.status);
       return { session: null, error: 'Failed to access HAC login page' };
     }
     
-    const loginPageHtml = await loginPageResponse.text();
+    const loginPageHtml = await readHacText(loginPageResponse);
     const $ = cheerio.load(loginPageHtml);
     
     // Build login form data with all hidden fields
@@ -363,7 +354,7 @@ export async function createSessionAndLogin(
     });
     
     console.log('[HAC] Login response status:', loginResponse.status, 'final URL:', finalUrl);
-    const loginResponseHtml = await loginResponse.text();
+    const loginResponseHtml = await readHacText(loginResponse);
     const loginPage = cheerio.load(loginResponseHtml);
 
     if (!loginResponse.ok) {
@@ -391,6 +382,7 @@ export async function createSessionAndLogin(
       username,
       password,
       baseUrl: normalizedBaseUrl,
+      userId,
       expiresAt,
     });
     
@@ -414,8 +406,8 @@ export async function createSessionAndLogin(
  * the token is stateless so no re-login is attempted here.
  * The frontend handles re-login via fetchWithAuth.
  */
-export async function validateSession(sessionId: string): Promise<boolean> {
-  const session = resolveSession(sessionId);
+export async function validateSession(sessionId: string, userId: string): Promise<boolean> {
+  const session = resolveSession(sessionId, userId);
   return session !== null;
 }
 
@@ -691,14 +683,16 @@ async function switchCycleViaPostBack(
     });
     
     if (response.status === 401 || response.status === 403) {
+      await discardHacResponse(response);
       throw new HACSessionExpiredError();
     }
     if (!response.ok) {
+      await discardHacResponse(response);
       console.error('[HAC] PostBack failed:', response.status);
       return null;
     }
     
-    const html = await response.text();
+    const html = await readHacText(response);
     const page = cheerio.load(html);
     if (isLoginPage(page, html)) {
       throw new HACSessionExpiredError();
@@ -744,16 +738,18 @@ export async function fetchGrades(sessionId: string, cycleValue?: string | numbe
     
     // Redirects and login pages mean the HAC cookie has expired.
     if (response.status >= 300 && response.status < 400 || response.status === 401 || response.status === 403) {
+      await discardHacResponse(response);
       console.error('[HAC] Session invalid - redirected or unauthorized');
       throw new HACSessionExpiredError();
     }
-    
+
     if (!response.ok) {
+      await discardHacResponse(response);
       console.error('[HAC] Failed to fetch grades:', response.status);
       return null;
     }
     
-    const html = await response.text();
+    const html = await readHacText(response);
     let $ = cheerio.load(html);
     
     if (isLoginPage($, html)) {
@@ -922,14 +918,16 @@ export async function fetchReportCard(sessionId: string): Promise<HACReportCard 
     });
     
     if (response.status === 401 || response.status === 403) {
+      await discardHacResponse(response);
       throw new HACSessionExpiredError();
     }
     if (!response.ok) {
+      await discardHacResponse(response);
       console.error('[HAC] Failed to fetch report card:', response.status);
       return null;
     }
     
-    let html = await response.text();
+    let html = await readHacText(response);
     let $ = cheerio.load(html);
     if (isLoginPage($, html)) {
       throw new HACSessionExpiredError();
@@ -939,7 +937,7 @@ export async function fetchReportCard(sessionId: string): Promise<HACReportCard 
     const dropdown = $('#plnMain_ddlRCRuns');
     const runOptions = dropdown.find('option').filter((_, el) => {
       const value = $(el).attr('value') || '';
-      return value && value.toUpperCase() !== 'ALL';
+      return Boolean(value) && value.toUpperCase() !== 'ALL';
     });
     const lastOption = runOptions.last();
     const lastValue = lastOption.length ? lastOption.attr('value') : undefined;
@@ -966,9 +964,7 @@ export async function fetchReportCard(sessionId: string): Promise<HACReportCard 
         postData.set('__EVENTTARGET', 'ctl00$plnMain$ddlRCRuns');
         postData.set('__EVENTARGUMENT', '');
         
-        const formAction = form.attr('action');
-        const postUrl = formAction ? new URL(formAction, reportCardUrl).toString() : reportCardUrl;
-        const latestResponse = await fetchWithRetry(postUrl, {
+        const latestResponse = await fetchWithRetry(reportCardUrl, {
           method: 'POST',
           headers: {
             'Cookie': session.cookies,
@@ -979,10 +975,13 @@ export async function fetchReportCard(sessionId: string): Promise<HACReportCard 
         });
 
         if (latestResponse.status === 401 || latestResponse.status === 403) {
+          await discardHacResponse(latestResponse);
           throw new HACSessionExpiredError();
         }
-        if (latestResponse.ok) {
-          html = await latestResponse.text();
+        if (!latestResponse.ok) {
+          await discardHacResponse(latestResponse);
+        } else {
+          html = await readHacText(latestResponse);
           $ = cheerio.load(html);
           if (isLoginPage($, html)) {
             throw new HACSessionExpiredError();

@@ -39,6 +39,7 @@ Your `.env` file should have:
 VITE_SUPABASE_URL=https://tgmskyfcynmfmotatedb.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+# Document Intel uses this server-only key to provision private, TTL-bound storage.
 
 # Firebase (Keep existing - unchanged)
 VITE_FIREBASE_API_KEY=your-firebase-key
@@ -52,8 +53,10 @@ VITE_FIREBASE_APP_ID=your-app-id
 VITE_GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 
-# HAC (Home Access Center - optional)
-VITE_HAC_BASE_URL=your-hac-url
+# HAC (Home Access Center - server only, optional)
+HAC_ALLOWED_ORIGINS=https://lis-hac.eschoolplus.powerschool.com
+HAC_DEFAULT_ORIGIN=https://lis-hac.eschoolplus.powerschool.com
+HAC_SESSION_SECRET=replace-with-a-long-random-secret
 ```
 
 ### 2. Install Dependencies

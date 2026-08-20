@@ -19,7 +19,6 @@ import { encryptLocalData, decryptLocalData } from '@/lib/tokenEncryption';
 interface HACCredentials {
   username: string;
   password: string;
-  districtBaseUrl?: string;
 }
 
 interface HACCycleOption {
@@ -152,6 +151,17 @@ export const HACProvider = ({ children }: HACProviderProps) => {
   const credentialsRef = useRef<HACCredentials | null>(null);
   const backgroundTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const authorizedHacFetch = useCallback(async (url: string, options: RequestInit = {}): Promise<Response> => {
+    if (!user) throw new Error('You must be logged in to connect HAC');
+    const idToken = await user.getIdToken();
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...((options.headers as Record<string, string>) || {}),
+        Authorization: `Bearer ${idToken}`,
+      },
+    });
+  }, [user]);
   // ─── Auth-aware fetch wrapper ───────────────────────────────────────────────
   
   /**
@@ -168,13 +178,13 @@ export const HACProvider = ({ children }: HACProviderProps) => {
       'X-HAC-Session': sid,
     };
     
-    const response = await fetch(url, { ...options, headers });
+    const response = await authorizedHacFetch(url, { ...options, headers });
     
     if (response.status === 401 && credentialsRef.current) {
       console.log('[HACContext] 401 received, attempting re-login...');
       
       try {
-        const loginResponse = await fetch(getApiUrl('/api/hac/login'), {
+        const loginResponse = await authorizedHacFetch(getApiUrl('/api/hac/login'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(credentialsRef.current),
@@ -189,7 +199,7 @@ export const HACProvider = ({ children }: HACProviderProps) => {
               ...((options.headers as Record<string, string>) || {}),
               'X-HAC-Session': loginData.sessionId,
             };
-            return fetch(url, { ...options, headers: retryHeaders });
+            return authorizedHacFetch(url, { ...options, headers: retryHeaders });
           }
         }
       } catch (error) {
@@ -203,7 +213,7 @@ export const HACProvider = ({ children }: HACProviderProps) => {
     }
     
     return response;
-  }, []);
+  }, [authorizedHacFetch]);
 
   // ─── Lifecycle ──────────────────────────────────────────────────────────────
 
@@ -269,7 +279,7 @@ export const HACProvider = ({ children }: HACProviderProps) => {
     setError(null);
     
     try {
-      const response = await fetch(getApiUrl('/api/hac/login'), {
+      const response = await authorizedHacFetch(getApiUrl('/api/hac/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials),
@@ -323,7 +333,7 @@ export const HACProvider = ({ children }: HACProviderProps) => {
     setError(null);
     
     try {
-      const response = await fetch(getApiUrl('/api/hac/login'), {
+      const response = await authorizedHacFetch(getApiUrl('/api/hac/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(credentials),
@@ -366,7 +376,7 @@ export const HACProvider = ({ children }: HACProviderProps) => {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.uid]);
+  }, [user?.uid, authorizedHacFetch]);
 
   const disconnect = useCallback(() => {
     if (backgroundTimerRef.current) {
@@ -374,7 +384,7 @@ export const HACProvider = ({ children }: HACProviderProps) => {
       backgroundTimerRef.current = null;
     }
     if (sessionId) {
-      fetch(getApiUrl('/api/hac/login'), {
+      authorizedHacFetch(getApiUrl('/api/hac/login'), {
         method: 'DELETE',
         headers: { 'X-HAC-Session': sessionId },
       }).catch(() => {});
@@ -395,7 +405,7 @@ export const HACProvider = ({ children }: HACProviderProps) => {
       localStorage.removeItem(getStorageKey(user.uid, 'credentials'));
     }
     setCachedUsername(null);
-  }, [sessionId, user?.uid]);
+  }, [sessionId, user?.uid, authorizedHacFetch]);
 
   // ─── Internal Grade Fetching ────────────────────────────────────────────────
 

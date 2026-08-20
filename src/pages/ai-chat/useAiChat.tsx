@@ -40,6 +40,10 @@ export function useAiChat() {
   const documentPollersRef = useRef(new Map<string, number>());
   const { toast } = useToast();
   const { user } = useAuth();
+  const documentRequestHeaders = async () => {
+    if (!user) throw new Error('You must be logged in to upload documents');
+    return { Authorization: `Bearer ${await user.getIdToken()}` };
+  };
   const { preferences } = usePreferences();
   const isDockNav = preferences.navigationStyle === 'dock' || !preferences.navigationStyle;
 
@@ -516,7 +520,7 @@ export function useAiChat() {
 
         const response = await fetch("/api/document-intel/sessions", {
           method: "POST",
-          headers: { "x-user-id": user?.uid || "anonymous" },
+          headers: await documentRequestHeaders(),
           body: formData,
         });
 
@@ -573,7 +577,7 @@ export function useAiChat() {
       try {
         const response = await fetch(
           `/api/document-intel/sessions?sessionId=${jobId}&action=content`,
-          { headers: { "x-user-id": user?.uid || "" } }
+          { headers: await documentRequestHeaders() }
         );
 
         if (response.ok) {
@@ -664,7 +668,7 @@ export function useAiChat() {
 
         const uploadResponse = await fetch("/api/document-intel/sessions", {
           method: "POST",
-          headers: { "x-user-id": user?.uid || "" },
+          headers: await documentRequestHeaders(),
           body: formData,
         });
 
@@ -688,7 +692,7 @@ export function useAiChat() {
           try {
             const contentResponse = await fetch(
               `/api/document-intel/sessions?sessionId=${jobId}&action=content`,
-              { headers: { "x-user-id": user?.uid || "" } }
+              { headers: await documentRequestHeaders() }
             );
 
             if (contentResponse.ok) {

@@ -106,13 +106,14 @@ export function DocumentUploadDialog({
       // Upload and process PDF/PPTX
       setProcessingState({ phase: 'uploading', message: 'Uploading document...' });
 
+      const idToken = await user.getIdToken();
       const formData = new FormData();
       formData.append('file', selectedFile);
 
       const response = await fetch('/api/document-intel/sessions', {
         method: 'POST',
         headers: {
-          'x-user-id': user.uid,
+          Authorization: `Bearer ${idToken}`,
         },
         body: formData,
       });
@@ -143,7 +144,7 @@ export function DocumentUploadDialog({
         try {
           const contentResponse = await fetch(`/api/document-intel/sessions?sessionId=${jobId}&action=content`, {
             headers: {
-              'x-user-id': user.uid,
+              Authorization: `Bearer ${idToken}`,
             },
           });
 

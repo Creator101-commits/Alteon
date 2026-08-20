@@ -1,155 +1,101 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
-import { randomUUID } from 'node:crypto';
+import { requireHacUser } from '../hac/auth.js';
+import {
+  createDocument,
+  deleteDocument,
+  DocumentQuotaError,
+  DocumentRateLimitError,
+  DocumentStorageError,
+  enforceDocumentRateLimits,
+  listDocuments,
+  readDocument,
+  replaceDocument,
+  validateDocumentContent,
+} from './storage.js';
 
-// In-memory session storage (for serverless, consider using Redis or Supabase)
-// For production, you should use a persistent store
-const sessions = new Map<string, any>();
-
-// Content store (merged from [sessionId]/content.ts)
-const contentStore = new Map<string, { content: string; userId: string; createdAt: Date }>();
+const SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const config = {
   api: {
-    bodyParser: {
-      sizeLimit: '10mb',
-    },
+    bodyParser: { sizeLimit: '256kb' },
   },
 };
 
+function sessionId(value: string | string[] | undefined): string | null {
+  const id = Array.isArray(value) ? value[0] : value;
+  return typeof id === 'string' && SESSION_ID_PATTERN.test(id) ? id : null;
+}
+
+function clientIp(req: VercelRequest): string {
+  const forwarded = req.headers['x-forwarded-for'];
+  return (typeof forwarded === 'string' ? forwarded.split(',')[0].trim() : '') || 'unknown';
+}
+
+function handleStorageError(error: unknown, res: VercelResponse): void {
+  if (error instanceof DocumentRateLimitError) {
+    res.setHeader('Retry-After', '60');
+    res.status(429).json({ message: 'Too many document requests. Please try again shortly.' });
+    return;
+  }
+  if (error instanceof DocumentQuotaError) {
+    res.status(413).json({ message: 'Document content exceeds the allowed quota.' });
+    return;
+  }
+  console.error('Document storage error:', error);
+  res.status(503).json({ message: 'Document storage is temporarily unavailable.' });
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
-  const userId = req.headers['x-user-id'] as string;
-
-  if (!userId) {
-    return res.status(401).json({ message: 'Unauthorized - missing user ID' });
+  if (!['POST', 'GET', 'PUT', 'DELETE'].includes(req.method || '')) {
+    return res.status(405).json({ message: 'Method not allowed' });
   }
 
-  if (req.method === 'POST') {
-    // Create new document processing session
-    try {
-      const contentType = req.headers['content-type'] || '';
-      
-      if (contentType.includes('multipart/form-data')) {
-        // Handle file upload
-        // Note: For Vercel, you may need to use a library like formidable
-        // or handle the file differently
-        const sessionId = randomUUID();
-        
-        // For now, return a session ID - actual processing would be done asynchronously
-        sessions.set(sessionId, {
-          id: sessionId,
-          userId,
-          status: 'processing',
-          createdAt: new Date().toISOString(),
-        });
+  const userId = await requireHacUser(req, res);
+  if (!userId) return;
 
-        return res.status(200).json({
-          sessionId,
-          status: 'processing',
-          message: 'Document upload received. Processing will begin shortly.',
-        });
+  try {
+    await enforceDocumentRateLimits(userId, clientIp(req));
+
+    if (req.method === 'POST') {
+      if ((req.headers['content-type'] || '').includes('multipart/form-data')) {
+        return res.status(415).json({ message: 'Upload document text content only.' });
       }
+      const content = validateDocumentContent(req.body?.content);
+      const id = await createDocument(userId, content);
+      return res.status(201).json({ sessionId: id, jobId: id, status: 'completed' });
+    }
 
-      // Handle JSON request (e.g., text content)
-      const { content, type } = req.body;
-      const sessionId = randomUUID();
-
-      sessions.set(sessionId, {
-        id: sessionId,
-        userId,
-        content,
-        type,
+    const id = sessionId(req.query.sessionId);
+    if (req.method === 'GET') {
+      if (id && req.query.action === 'content') {
+        const content = await readDocument(userId, id);
+        if (content === null) return res.status(404).json({ message: 'Document not found' });
+        return res.status(200).json({ sessionId: id, status: 'completed', content, extractedText: content });
+      }
+      const documents = await listDocuments(userId);
+      if (id) {
+        const document = documents.find((entry) => entry.sessionId === id);
+        return document
+          ? res.status(200).json({ sessionId: id, status: 'completed', createdAt: document.createdAt })
+          : res.status(404).json({ message: 'Document not found' });
+      }
+      return res.status(200).json(documents.map((document) => ({
+        sessionId: document.sessionId,
         status: 'completed',
-        createdAt: new Date().toISOString(),
-      });
-
-      return res.status(200).json({
-        sessionId,
-        status: 'completed',
-        content,
-      });
-    } catch (error: any) {
-      console.error('Document processing error:', error);
-      return res.status(500).json({
-        message: 'Failed to process document',
-        error: error.message,
-      });
+        createdAt: document.createdAt,
+      })));
     }
+
+    if (!id) return res.status(400).json({ message: 'Invalid session ID' });
+    if (req.method === 'PUT') {
+      const content = validateDocumentContent(req.body?.content);
+      if (!await replaceDocument(userId, id, content)) return res.status(404).json({ message: 'Document not found' });
+      return res.status(200).json({ sessionId: id, status: 'stored' });
+    }
+
+    await deleteDocument(userId, id);
+    return res.status(204).end();
+  } catch (error) {
+    return handleStorageError(error, res);
   }
-
-  if (req.method === 'GET') {
-    const sessionId = req.query.sessionId as string;
-    const action = req.query.action as string;
-
-    // GET ?sessionId=X&action=content → return document content (merged from [sessionId]/content)
-    if (sessionId && action === 'content') {
-      const stored = contentStore.get(sessionId);
-
-      if (!stored) {
-        return res.status(200).json({
-          sessionId,
-          status: 'completed',
-          content: 'Document content not available. The document may have been processed in a different session or the content has expired.',
-          extractedText: '',
-        });
-      }
-
-      if (stored.userId !== userId) {
-        return res.status(403).json({ message: 'Access denied' });
-      }
-
-      return res.status(200).json({
-        sessionId,
-        status: 'completed',
-        content: stored.content,
-        extractedText: stored.content,
-      });
-    }
-
-    // GET ?sessionId=X → session status
-    if (sessionId) {
-      const session = sessions.get(sessionId);
-      if (!session || session.userId !== userId) {
-        return res.status(404).json({ message: 'Session not found' });
-      }
-      return res.status(200).json(session);
-    }
-
-    // GET → all sessions for user
-    const userSessions = Array.from(sessions.values())
-      .filter(s => s.userId === userId);
-    return res.status(200).json(userSessions);
-  }
-
-  // PUT ?sessionId=X&action=content → store document content
-  if (req.method === 'PUT') {
-    const sessionId = req.query.sessionId as string;
-    const { content } = req.body;
-
-    if (!sessionId) {
-      return res.status(400).json({ message: 'Missing session ID' });
-    }
-    if (!content) {
-      return res.status(400).json({ message: 'Missing content' });
-    }
-
-    contentStore.set(sessionId, { content, userId, createdAt: new Date() });
-    return res.status(200).json({ sessionId, status: 'stored', message: 'Content stored successfully' });
-  }
-
-  if (req.method === 'DELETE') {
-    const sessionId = req.query.sessionId as string;
-
-    if (!sessionId) {
-      return res.status(400).json({ message: 'Missing session ID' });
-    }
-
-    const session = sessions.get(sessionId);
-    if (session && session.userId === userId) {
-      sessions.delete(sessionId);
-    }
-    contentStore.delete(sessionId);
-    return res.status(200).json({ message: 'Session deleted' });
-  }
-
-  return res.status(405).json({ message: 'Method not allowed' });
 }
